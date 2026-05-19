@@ -39,8 +39,9 @@ def get_iri_profile(lat: float, lon: float, dt: datetime.datetime) -> IRIProfile
         result = IRI(dt, [100, 500, 10], lat, lon)
 
         ne_profile = result['ne'].values
+        alts = result['alt_km'].values
         NmF2 = float(np.nanmax(ne_profile))
-        hmF2 = float(result['alt'].values[np.nanargmax(ne_profile)])
+        hmF2 = float(alts[np.nanargmax(ne_profile)])
         foF2 = 8.98e-3 * np.sqrt(NmF2)
         TEC = float(np.nansum(ne_profile) * 10 * 1e-16)
 
@@ -50,7 +51,7 @@ def get_iri_profile(lat: float, lon: float, dt: datetime.datetime) -> IRIProfile
         )
 
     except ImportError:
-        print("WARNING: iri2016 not installed. Run: pip install iri2016")
+        print("WARNING: iri2016 not installed.")
         return IRIProfile(lat=lat, lon=lon, datetime=dt)
 
     except Exception as e:
