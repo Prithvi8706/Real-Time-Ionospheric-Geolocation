@@ -67,8 +67,8 @@ def ssl_locate(
       4. Project along azimuth to get transmitter location
     """
 
-    # Step 1: Get ionospheric profile
-    iono = get_ionosphere(
+    # Step 1a: Initial rough transmitter estimate using receiver location
+    iono_init = get_ionosphere(
         lat=receiver_lat,
         lon=receiver_lon,
         dt=dt,
@@ -76,7 +76,26 @@ def ssl_locate(
         dst=dst,
         irtam_available=irtam_available
     )
+    rough_height = iono_init["profile"].hmF2
+    rough_distance = compute_ground_distance(rough_height, elevation_deg)
+    rough_tx_lat, rough_tx_lon = compute_transmitter_location(
+        receiver_lat, receiver_lon,
+        azimuth_deg, rough_distance
+    )
 
+    # Step 1b: Compute midpoint between receiver and rough transmitter
+    mid_lat = (receiver_lat + rough_tx_lat) / 2
+    mid_lon = (receiver_lon + rough_tx_lon) / 2
+
+    # Step 1c: Re-query ionosphere at midpoint (bounce point)
+    iono = get_ionosphere(
+        lat=mid_lat,
+        lon=mid_lon,
+        dt=dt,
+        kp=kp,
+        dst=dst,
+        irtam_available=irtam_available
+    )
     virtual_height_km = iono["profile"].hmF2
 
     # Step 2: Ground distance
