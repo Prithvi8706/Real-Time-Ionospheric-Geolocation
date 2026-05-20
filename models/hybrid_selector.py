@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-ModelChoice = Literal["IRTAM", "IRI", "E-CHAIM", "SAMI3"]
+ModelChoice = Literal["IRTAM", "IRI", "A-CHAIM", "SAMI3"]
 
 @dataclass
 class SelectionResult:
@@ -22,7 +22,7 @@ def select_model(
 
     Priority order:
       1. SAMI3   — storm conditions (Kp >= 5 or Dst <= -100)
-      2. E-CHAIM — high latitudes (|lat| >= 60)
+      2. A-CHAIM — high latitudes (|lat| >= 60)
       3. IRTAM   — real-time, if server is up
       4. IRI     — calm fallback
     """
@@ -35,7 +35,7 @@ def select_model(
 
     if abs(lat) >= 60.0:
         return SelectionResult(
-            model="E-CHAIM",
+            model="A-CHAIM",
             reason=f"High latitude: lat={lat}°"
         )
 
