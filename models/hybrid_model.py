@@ -2,6 +2,7 @@ from datetime import datetime
 from models.hybrid_selector import select_model, SelectionResult
 from models.iri.iri_wrapper import get_iri_profile, IRIProfile
 from models.achaim.achaim_wrapper import get_achaim_profile
+from models.irtam.irtam_wrapper import get_irtam_profile, is_irtam_available
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,12 @@ def get_ionosphere(
         profile = get_iri_profile(lat, lon, dt)
 
     elif selection.model == "IRTAM":
-        logger.warning("IRTAM selected but not yet implemented — falling back to IRI")
-        profile = get_iri_profile(lat, lon, dt)
+        irtam_profile = get_irtam_profile(lat, lon, dt)
+        if is_irtam_available(irtam_profile):
+            profile = irtam_profile
+        else:
+            logger.warning("PyIRTAM returned no usable profile — falling back to IRI")
+            profile = get_iri_profile(lat, lon, dt)
 
     elif selection.model == "A-CHAIM":
         achaim_result = get_achaim_profile(lat, lon, ACHAIM_DB_PATH, ACHAIM_EXE_PATH)
