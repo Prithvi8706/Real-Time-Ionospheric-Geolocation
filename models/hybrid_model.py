@@ -44,11 +44,16 @@ def get_ionosphere(
     elif selection.model == "A-CHAIM":
         achaim_result = get_achaim_profile(lat, lon, ACHAIM_DB_PATH, ACHAIM_EXE_PATH)
         if achaim_result is not None:
+            # Build IRIProfile with all required fields
             profile = IRIProfile(
+                lat=lat,
+                lon=lon,
+                datetime=dt,
                 NmF2=achaim_result.get("NmF2"),
                 hmF2=achaim_result.get("hmF2"),
-                foF2=None,
-                TEC=None
+                foF2=None,   # A-CHAIM doesn't output foF2 directly
+                TEC=None,    # not requested (alt=0 mode)
+                source="A-CHAIM"
             )
         else:
             logger.warning("A-CHAIM returned None — falling back to IRI")
