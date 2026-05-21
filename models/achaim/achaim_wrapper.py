@@ -47,13 +47,12 @@ def get_achaim_hmf2(lat, lon, db_path, exe_path, dregion=1, aurora=1, proton=1):
 
         # ── Step 1b: Copy ECHAIM_FIRI.db into temp dir too ─────────────────
         # The exe also needs the FIRI background file in its working directory.
-        # It lives next to the exe (in the ACHAIM folder).
         exe_dir = os.path.dirname(exe_path)
         firi_src = os.path.join(exe_dir, "ECHAIM_FIRI.db")
         if os.path.isfile(firi_src):
             shutil.copy2(firi_src, os.path.join(tmpdir, "ECHAIM_FIRI.db"))
         else:
-            print(f"[achaim_wrapper] WARNING: ECHAIM_FIRI.db not found next to exe at {firi_src}")
+            print(f"[achaim_wrapper] WARNING: ECHAIM_FIRI.db not found at {firi_src}")
 
         # ── Step 2: Write ACHAIM.in ─────────────────────────────────────────
         # interval=0 → exact values; alt=0 → TEC mode (characteristics only)
@@ -75,6 +74,7 @@ def get_achaim_hmf2(lat, lon, db_path, exe_path, dregion=1, aurora=1, proton=1):
         # ── Step 3: Run the executable ──────────────────────────────────────
         # Add exe's own directory to PATH so Windows finds its MinGW DLLs
         env = os.environ.copy()
+        exe_dir = os.path.dirname(exe_path)
         env["PATH"] = exe_dir + os.pathsep + env.get("PATH", "")
 
         # Normalize path to native Windows format for subprocess
@@ -82,15 +82,16 @@ def get_achaim_hmf2(lat, lon, db_path, exe_path, dregion=1, aurora=1, proton=1):
 
         # capture_output omitted: the 32-bit MinGW binary uses pthreads and
         # crashes (exit 3221225477) when run without a real console attached.
+        # Timeout increased to 120s — the exe runs slower from notebook context.
         try:
             proc = subprocess.run(
                 [exe_path_native],
                 cwd=tmpdir,
-                timeout=30,
+                timeout=120,
                 env=env
             )
         except subprocess.TimeoutExpired:
-            print("[achaim_wrapper] ERROR: ACHAIM timed out after 30s.")
+            print("[achaim_wrapper] ERROR: ACHAIM timed out after 120s.")
             return None
         except Exception as e:
             print(f"[achaim_wrapper] ERROR: Could not run executable: {e}")
