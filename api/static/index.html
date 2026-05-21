@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RTIL&#x2011;GEO &middot; DIA&#x2011;CoE/EW/02</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg:        #0a0e14;
+      --surface:   #121820;
+      --surface2:  #1a2130;
+      --border:    #242f3e;
+      --cyan:      #00d4f5;
+      --cyan-bg:   rgba(0,212,245,0.07);
+      --cyan-mid:  rgba(0,212,245,0.18);
+      --amber:     #f0a040;
+      --amber-bg:  rgba(240,160,64,0.07);
+      --text:      #c8d3de;
+      --muted:     #5e7385;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --mono:      ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      /* subtle grid overlay — HUD aesthetic */
+      background-image:
+        linear-gradient(rgba(0,212,245,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,245,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─────────────────────────── HEADER ─────────────────────────── */
+    header {
+      flex: 0 0 auto;
+      height: 54px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      gap: 16px;
+      position: relative;
+      z-index: 10;
+    }
+    /* top cyan accent line */
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan) 0%, transparent 60%);
+    }
+    .h-brand { display: flex; align-items: center; gap: 14px; }
+    .h-logo {
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 18px rgba(0,212,245,0.45);
+      white-space: nowrap;
+    }
+    .h-sep { width: 1px; height: 22px; background: var(--border); }
+    .h-meta { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .h-meta strong { color: var(--text); font-weight: 500; }
+    .status-pill {
+      display: flex; align-items: center; gap: 7px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--green);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+    /* ──────────────────────── WORKSPACE ─────────────────────────── */
+    .workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 408px 1fr;
+      overflow: hidden;
+    }
+
+    /* ─────────────────────── LEFT PANEL ─────────────────────────── */
+    .left-panel {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .left-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .left-scroll::-webkit-scrollbar { width: 4px; }
+    .left-scroll::-webkit-scrollbar-track { background: transparent; }
+    .left-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Intro blurb */
+    .intro {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 5px 5px 0;
+      padding: 11px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .intro strong { color: var(--cyan); font-weight: 600; }
+
+    /* Section headings */
+    .sec-lbl {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-top: 2px;
+    }
+
+    /* Field grid */
+    .fields { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .frow.one { grid-template-columns: 1fr; }
+    .field { display: flex; flex-direction: column; gap: 3px; }
+    .field label {
+      font-size: 10.5px;
+      color: var(--muted);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .tip {
+      font-size: 11px;
+      color: #2e4055;
+      cursor: help;
+      transition: color 0.15s;
+      user-select: none;
+    }
+    .tip:hover { color: var(--cyan); }
+
+    input[type="number"],
+    input[type="datetime-local"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      padding: 6px 9px;
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type="number"]:focus,
+    input[type="datetime-local"]:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 2px rgba(0,212,245,0.1);
+    }
+    input[type="datetime-local"] { color-scheme: dark; }
+
+    /* Checkbox row */
+    .chk-row {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    input[type="checkbox"] {
+      width: 14px; height: 14px;
+      accent-color: var(--cyan);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .chk-row label {
+      font-size: 12px; color: var(--text);
+      cursor: pointer; flex: 1;
+    }
+    .chk-row .tip { margin-left: auto; }
+
+    /* Submit area */
+    .submit-area { display: flex; flex-direction: column; gap: 7px; }
+    .btn-compute {
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid var(--cyan);
+      border-radius: 4px;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .btn-compute:hover:not(:disabled) {
+      background: var(--cyan-bg);
+      box-shadow: 0 0 18px rgba(0,212,245,0.15);
+    }
+    .btn-compute:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .alert {
+      display: none;
+      font-size: 11.5px;
+      padding: 8px 11px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      line-height: 1.5;
+    }
+    .alert.loading {
+      display: block;
+      color: var(--cyan);
+      background: var(--cyan-bg);
+      border: 1px solid rgba(0,212,245,0.2);
+    }
+    .alert.error {
+      display: block;
+      color: var(--red);
+      background: rgba(248,81,73,0.07);
+      border: 1px solid rgba(248,81,73,0.2);
+    }
+
+    /* ─────────────────────── RIGHT PANEL ─────────────────────────── */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #map {
+      flex: 1 1 0;
+      min-height: 260px;
+      /* Tiles require internet access — demo only */
+    }
+
+    /* ─────────────────────── RESULTS PANEL ──────────────────────── */
+    .results-panel {
+      flex: 0 0 auto;
+      max-height: 40%;
+      overflow-y: auto;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .results-panel::-webkit-scrollbar { width: 4px; }
+    .results-panel::-webkit-scrollbar-track { background: transparent; }
+    .results-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .res-empty {
+      padding: 18px 24px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+    .res-cards {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Card shells */
+    .card {
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .card-hdr {
+      padding: 7px 14px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-hdr.primary {
+      background: var(--cyan-bg);
+      border-bottom: 1px solid rgba(0,212,245,0.14);
+      color: var(--cyan);
+    }
+    .card-hdr.iono {
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .card-hdr.gp {
+      background: var(--amber-bg);
+      border-bottom: 1px solid rgba(240,160,64,0.14);
+      color: var(--amber);
+    }
+    .exp-tag {
+      font-size: 8px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(240,160,64,0.12);
+      border: 1px solid rgba(240,160,64,0.25);
+      color: var(--amber);
+      letter-spacing: 0.1em;
+    }
+    .card-body { padding: 10px 14px; }
+
+    /* Stat grids inside cards */
+    .sgrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px 14px;
+    }
+    .sgrid.two { grid-template-columns: 1fr 1fr; }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat-lbl {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .stat-val.c  { color: var(--cyan); font-size: 16px; }
+    .stat-val.a  { color: var(--amber); font-size: 14px; }
+    .stat-val.sm { font-size: 12px; color: var(--muted); }
+    .unit { font-size: 10px; color: var(--muted); margin-left: 2px; }
+    .method-note {
+      margin-top: 9px;
+      font-size: 10.5px;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .gp-warning {
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--amber);
+      background: rgba(240,160,64,0.06);
+      border: 1px solid rgba(240,160,64,0.15);
+      border-radius: 4px;
+      padding: 7px 10px;
+      margin-bottom: 9px;
+    }
+
+    /* ─────────────── LEAFLET DARK OVERRIDES ────────────────────── */
+    .leaflet-container { background: #0c1018 !important; }
+    .leaflet-control-zoom a {
+      background: var(--surface) !important;
+      color: var(--text) !important;
+      border-color: var(--border) !important;
+    }
+    .leaflet-control-zoom a:hover { background: var(--surface2) !important; }
+    .leaflet-control-attribution {
+      background: rgba(10,14,20,0.75) !important;
+      color: #3d5060 !important;
+      font-size: 9px !important;
+    }
+    .leaflet-control-attribution a { color: #3d5060 !important; }
+    .leaflet-popup-content-wrapper {
+      background: var(--surface) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 5px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+    }
+    .leaflet-popup-tip { background: var(--surface) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- ━━━━━━━━━━━━━━━ HEADER ━━━━━━━━━━━━━━━ -->
+  <header>
+    <div class="h-brand">
+      <span class="h-logo">RTIL&#x2011;GEO</span>
+      <div class="h-sep"></div>
+      <div class="h-meta">
+        <strong>Real-Time Ionospheric Geolocation</strong><br>
+        DRDO&nbsp; DIA&#x2011;CoE/EW/02 &nbsp;&middot;&nbsp; Single-Station HF Emitter Localisation
+      </div>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot"></div>OPERATIONAL
+    </div>
+  </header>
+
+  <!-- ━━━━━━━━━━━━━━━ WORKSPACE ━━━━━━━━━━━━━━━ -->
+  <div class="workspace">
+
+    <!-- ━━━ LEFT PANEL ━━━ -->
+    <div class="left-panel">
+      <div class="left-scroll">
+
+        <div class="intro">
+          This system estimates the location of a <strong>high-frequency (HF) radio transmitter</strong>
+          from a single receiving station using the <strong>Single-Station Location (SSL)</strong> method.
+          HF signals &ldquo;skip&rdquo; off the ionosphere — a charged layer of the upper atmosphere.
+          By measuring the signal&rsquo;s arrival bearing and elevation and modelling the ionospheric
+          height, the pipeline back-calculates the transmitter&rsquo;s ground position.
+          Enter your station coordinates, the measured signal angles, and current space-weather
+          conditions, then click <em>Compute</em>.
+        </div>
+
+        <form id="loc-form" autocomplete="off">
+
+          <!-- Section: Station & Signal -->
+          <div class="sec-lbl">Station &amp; Signal</div>
+          <div class="fields">
+            <div class="frow">
+              <div class="field">
+                <label>Receiver Latitude
+                  <span class="tip" title="Latitude of your receiving station in decimal degrees. South is negative (e.g. −33 for Cape Town).">ⓘ</span>
+                </label>
+                <input type="number" id="f-rlat" value="23.0" step="0.01" min="-90" max="90" required>
+              </div>
+              <div class="field">
+                <label>Receiver Longitude
+                  <span class="tip" title="Longitude of your receiving station in decimal degrees. West is negative (e.g. −74 for New York).">ⓘ</span>
+                </label>
+                <input type="number" id="f-rlon" value="72.5" step="0.01" min="-180" max="180" required>
+              </div>
+            </div>
+            <div class="frow">
+              <div class="field">
+                <label>Bearing to Signal (&deg;)
+                  <span class="tip" title="Compass direction the signal arrived from: 0 = North, 90 = East, 180 = South, 270 = West.">ⓘ</span>
+                </label>
+                <input type="number" id="f-az" value="45.0" step="0.1" min="0" max="360" required>
+              </div>
+              <div class="field">
+                <label>Elevation Angle (&deg;)
+                  <span class="tip" title="Angle above the horizon at which the signal arrived. Higher elevation = shorter skip distance = closer transmitter.">ⓘ</span>
+                </label>
+                <input type="number" id="f-el" value="30.0" step="0.1" min="0.5" max="89" required>
+              </div>
+            </div>
+            <div class="frow one">
+              <div class="field">
+                <label>Signal Frequency (MHz)
+                  <span class="tip" title="The HF frequency in megahertz — typically 2–30 MHz for ionospheric skywave propagation.">ⓘ</span>
+                </label>
+                <input type="number" id="f-freq" value="10.0" step="0.1" min="1" max="50" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Environmental -->
+          <div class="sec-lbl" style="margin-top:14px;">Environmental Parameters</div>
+          <div class="fields">
+            <div class="frow one">
+              <div class="field">
+                <label>Date &amp; Time (UTC)
+                  <span class="tip" title="Date and time the signal was received, in UTC. Used to query the ionospheric model for that specific moment.">ⓘ</span>
+                </label>
+                <input type="datetime-local" id="f-ts" value="2012-06-15T12:00" required>
+              </div>
+            </div>
+            <div class="frow">
+              <div class="field">
+                <label>Kp Index
+                  <span class="tip" title="Global geomagnetic activity index: 0 = completely calm, 9 = extreme storm. Controls which ionospheric model the pipeline selects.">ⓘ</span>
+                </label>
+                <input type="number" id="f-kp" value="1.0" step="0.1" min="0" max="9" required>
+              </div>
+              <div class="field">
+                <label>Dst Index (nT)
+                  <span class="tip" title="Geomagnetic storm strength in nanotesla. Values near 0 are calm; large negative values (e.g. −150) indicate a severe magnetic storm.">ⓘ</span>
+                </label>
+                <input type="number" id="f-dst" value="-10.0" step="1" min="-600" max="50" required>
+              </div>
+            </div>
+            <div class="chk-row">
+              <input type="checkbox" id="f-irtam" checked>
+              <label for="f-irtam">Enable IRTAM ionospheric model</label>
+              <span class="tip" title="When checked, uses the real-time assimilated IRTAM model for calm geomagnetic conditions instead of the baseline IRI model.">ⓘ</span>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <div class="submit-area" style="margin-top:14px;">
+            <button type="submit" class="btn-compute" id="btn">&#x25B7;&nbsp; COMPUTE GEOLOCATION</button>
+            <div id="alert-box" class="alert"></div>
+          </div>
+
+        </form>
+      </div><!-- /left-scroll -->
+    </div><!-- /left-panel -->
+
+    <!-- ━━━ RIGHT PANEL ━━━ -->
+    <div class="right-panel">
+      <div id="map"></div>
+
+      <div class="results-panel" id="res-panel">
+        <div class="res-empty" id="res-empty">
+          Submit the form to compute a geolocation estimate &mdash; results will appear here.
+        </div>
+        <div id="res-cards" class="res-cards" style="display:none;">
+
+          <!-- Primary estimate -->
+          <div class="card">
+            <div class="card-hdr primary">&#9632;&nbsp; Primary Estimate &mdash; SSL Physics</div>
+            <div class="card-body">
+              <div class="sgrid">
+                <div class="stat">
+                  <span class="stat-lbl">Estimated Latitude</span>
+                  <span class="stat-val c" id="r-lat">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">Estimated Longitude</span>
+                  <span class="stat-val c" id="r-lon">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">Ground Distance</span>
+                  <span class="stat-val" id="r-dist">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">Virtual Height</span>
+                  <span class="stat-val" id="r-vh">—</span>
+                </div>
+              </div>
+              <div class="method-note" id="r-method">—</div>
+            </div>
+          </div>
+
+          <!-- Ionosphere info -->
+          <div class="card">
+            <div class="card-hdr iono">&#9670;&nbsp; Ionospheric Model</div>
+            <div class="card-body">
+              <div class="sgrid two">
+                <div class="stat">
+                  <span class="stat-lbl">Model Used</span>
+                  <span class="stat-val sm" id="r-model">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">Selection Reason</span>
+                  <span class="stat-val sm" id="r-reason">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- GP correction -->
+          <div class="card">
+            <div class="card-hdr gp">
+              &#9651;&nbsp; GP Correction
+              <span class="exp-tag">EXPERIMENTAL &mdash; NOT VALIDATED</span>
+            </div>
+            <div class="card-body">
+              <div class="gp-warning" id="gp-note">—</div>
+              <div class="sgrid">
+                <div class="stat">
+                  <span class="stat-lbl">Corrected Lat</span>
+                  <span class="stat-val a" id="r-gp-lat">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">Corrected Lon</span>
+                  <span class="stat-val a" id="r-gp-lon">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">&plusmn; Lat Uncertainty</span>
+                  <span class="stat-val sm" id="r-gp-ulat">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-lbl">&plusmn; Lon Uncertainty</span>
+                  <span class="stat-val sm" id="r-gp-ulon">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /res-cards -->
+      </div><!-- /results-panel -->
+    </div><!-- /right-panel -->
+
+  </div><!-- /workspace -->
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ━━━ Map setup ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Tile layer requires internet access (demo environment).
+    // CartoDB dark tiles match the console colour scheme.
+    var map = L.map('map').setView([23, 80], 4);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(map);
+
+    function makeIcon(color, size) {
+      return L.divIcon({
+        className: '',
+        html: '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;'
+            + 'background:' + color + ';border:2px solid rgba(255,255,255,0.55);'
+            + 'box-shadow:0 0 10px ' + color + ',0 0 24px ' + color + '44"></div>',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -(size / 2 + 6)]
+      });
+    }
+
+    var rxMarker = null, txMarker = null, bearingPath = null;
+
+    function clearMapLayers() {
+      if (rxMarker)    { map.removeLayer(rxMarker);    rxMarker    = null; }
+      if (txMarker)    { map.removeLayer(txMarker);    txMarker    = null; }
+      if (bearingPath) { map.removeLayer(bearingPath); bearingPath = null; }
+    }
+
+    function plotOnMap(rxLat, rxLon, txLat, txLon) {
+      clearMapLayers();
+
+      rxMarker = L.marker([rxLat, rxLon], { icon: makeIcon('#00d4f5', 14) })
+        .addTo(map)
+        .bindPopup(
+          '<b style="font-family:monospace;color:#00d4f5">&#9632; Receiver Station</b><br>'
+          + rxLat.toFixed(4) + '&deg;&nbsp;N,&nbsp;' + rxLon.toFixed(4) + '&deg;&nbsp;E'
+        );
+
+      txMarker = L.marker([txLat, txLon], { icon: makeIcon('#f0a040', 14) })
+        .addTo(map)
+        .bindPopup(
+          '<b style="font-family:monospace;color:#f0a040">&#9651; Estimated Emitter</b><br>'
+          + txLat.toFixed(4) + '&deg;&nbsp;N,&nbsp;' + txLon.toFixed(4) + '&deg;&nbsp;E'
+        );
+
+      bearingPath = L.polyline([[rxLat, rxLon], [txLat, txLon]], {
+        color: '#00d4f5', weight: 1.5, opacity: 0.65, dashArray: '7 5'
+      }).addTo(map);
+
+      map.fitBounds([[rxLat, rxLon], [txLat, txLon]], { padding: [50, 50] });
+      txMarker.openPopup();
+    }
+
+    // ━━━ Form submit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    var form     = document.getElementById('loc-form');
+    var btn      = document.getElementById('btn');
+    var alertBox = document.getElementById('alert-box');
+
+    function setAlert(cls, txt) {
+      alertBox.className  = 'alert ' + cls;
+      alertBox.textContent = txt;
+    }
+    function clearAlert() {
+      alertBox.className  = 'alert';
+      alertBox.textContent = '';
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      var rxLat = parseFloat(document.getElementById('f-rlat').value);
+      var rxLon = parseFloat(document.getElementById('f-rlon').value);
+      var tsRaw = document.getElementById('f-ts').value;
+      // datetime-local gives "YYYY-MM-DDTHH:MM"; append seconds for ISO 8601
+      var ts = tsRaw.length === 16 ? tsRaw + ':00' : tsRaw;
+
+      var payload = {
+        receiver_lat:    rxLat,
+        receiver_lon:    rxLon,
+        azimuth_deg:     parseFloat(document.getElementById('f-az').value),
+        elevation_deg:   parseFloat(document.getElementById('f-el').value),
+        frequency_mhz:   parseFloat(document.getElementById('f-freq').value),
+        timestamp:       ts,
+        kp:              parseFloat(document.getElementById('f-kp').value),
+        dst:             parseFloat(document.getElementById('f-dst').value),
+        irtam_available: document.getElementById('f-irtam').checked
+      };
+
+      btn.disabled = true;
+      btn.textContent = 'COMPUTING…';
+      setAlert('loading', 'Querying ionospheric model — this may take a few seconds…');
+      document.getElementById('res-cards').style.display = 'none';
+      document.getElementById('res-empty').style.display = 'block';
+
+      fetch('/locate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload)
+      })
+      .then(function(resp) {
+        if (!resp.ok) {
+          return resp.json().catch(function() { return { detail: resp.statusText }; })
+            .then(function(e) {
+              var msg = e.detail
+                ? (Array.isArray(e.detail) ? e.detail.map(function(d) { return d.msg; }).join('; ') : String(e.detail))
+                : resp.statusText;
+              throw new Error('Server ' + resp.status + ': ' + msg);
+            });
+        }
+        return resp.json();
+      })
+      .then(function(data) {
+        renderResult(data, rxLat, rxLon);
+        clearAlert();
+      })
+      .catch(function(err) {
+        setAlert('error', '✗  ' + err.message);
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '▷  COMPUTE GEOLOCATION';
+      });
+    });
+
+    // ━━━ Render result ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    function fv(val, unit) {
+      if (val === null || val === undefined) {
+        return '<span style="color:var(--muted);font-size:12px">n/a</span>';
+      }
+      return String(val) + (unit ? '<span class="unit">' + unit + '</span>' : '');
+    }
+
+    function renderResult(data, rxLat, rxLon) {
+      var pe  = data.primary_estimate;
+      var ion = data.ionosphere;
+      var gp  = data.gp_correction;
+
+      // Primary estimate
+      document.getElementById('r-lat').innerHTML    = fv(pe.transmitter_lat, '&deg;');
+      document.getElementById('r-lon').innerHTML    = fv(pe.transmitter_lon, '&deg;');
+      document.getElementById('r-dist').innerHTML   = fv(pe.ground_distance_km, ' km');
+      document.getElementById('r-vh').innerHTML     = fv(pe.virtual_height_km, ' km');
+      document.getElementById('r-method').textContent = pe.method;
+
+      // Ionosphere
+      document.getElementById('r-model').textContent  = ion.model_used;
+      document.getElementById('r-reason').textContent = ion.reason;
+
+      // GP correction
+      document.getElementById('gp-note').textContent   = gp.note;
+      document.getElementById('r-gp-lat').innerHTML    = fv(gp.corrected_lat, '&deg;');
+      document.getElementById('r-gp-lon').innerHTML    = fv(gp.corrected_lon, '&deg;');
+      document.getElementById('r-gp-ulat').innerHTML   = fv(gp.uncertainty_lat_deg, '&deg;');
+      document.getElementById('r-gp-ulon').innerHTML   = fv(gp.uncertainty_lon_deg, '&deg;');
+
+      document.getElementById('res-empty').style.display = 'none';
+      document.getElementById('res-cards').style.display = 'flex';
+
+      plotOnMap(rxLat, rxLon, pe.transmitter_lat, pe.transmitter_lon);
+    }
+  </script>
+</body>
+</html>
