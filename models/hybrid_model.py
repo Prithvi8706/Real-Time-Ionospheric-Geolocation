@@ -2,9 +2,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from models.hybrid_selector import select_model, SelectionResult
 from models.iri.iri_wrapper import get_iri_profile, IRIProfile
+from models.achaim.achaim_wrapper import get_achaim_profile
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ── A-CHAIM config ───────────────────────────────────────────────────────────
+# Paths to the compiled A-CHAIM binary and its database file.
+# Update these if you move the binary or run on a different machine.
+ACHAIM_EXE_PATH = "C:/Users/prith/Downloads/A-CHAIM_User_Release-6.0.3/A-CHAIM_User_Release-6.0.3/C/ACHAIM/ACHAIM.exe"
+ACHAIM_DB_PATH  = "C:/Users/prith/Downloads/A-CHAIM_User_Release-6.0.3/A-CHAIM_User_Release-6.0.3/C/example/example.db"
+
 
 def get_ionosphere(
     lat: float,
@@ -34,13 +42,24 @@ def get_ionosphere(
         logger.warning("IRTAM selected but not yet implemented — falling back to IRI")
         profile = get_iri_profile(lat, lon, dt)
 
-    elif selection.model == "E-CHAIM":
-        # Placeholder — E-CHAIM wrapper pending
-        logger.warning("E-CHAIM selected but not yet implemented — falling back to IRI")
-        profile = get_iri_profile(lat, lon, dt)
+    elif selection.model == "A-CHAIM":
+        # Call A-CHAIM C binary via subprocess wrapper
+        achaim_result = get_achaim_profile(lat, lon, ACHAIM_DB_PATH, ACHAIM_EXE_PATH)
+        if achaim_result is not None:
+            # Convert A-CHAIM result to IRIProfile format
+            profile = IRIProfile(
+                NmF2=achaim_result.get("NmF2"),
+                hmF2=achaim_result.get("hmF2"),
+                foF2=None,   # A-CHAIM doesn't output foF2 directly
+                TEC=None     # not requested (alt=0 mode)
+            )
+        else:
+            # A-CHAIM returned None — point outside boundary or binary failed
+            logger.warning("A-CHAIM returned None — falling back to IRI")
+            profile = get_iri_profile(lat, lon, dt)
 
     elif selection.model == "SAMI3":
-        # Placeholder — SAMI3 wrapper pending
+        # Placeholder — SAMI3 wrapper pending CCMC data request
         logger.warning("SAMI3 selected but not yet implemented — falling back to IRI")
         profile = get_iri_profile(lat, lon, dt)
 
