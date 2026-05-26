@@ -21,24 +21,15 @@ def haversine_error_km(lat1, lon1, lat2, lon2):
     return R * 2 * np.arcsin(np.sqrt(a))
 
 def load_and_prepare(csv_path: str):
-    """Load simulated dataset and extract features + targets."""
+    """Load real residuals dataset and extract features + targets."""
     df = pd.read_csv(csv_path)
     df["hour"]  = pd.to_datetime(df["dt"]).dt.hour
     df["month"] = pd.to_datetime(df["dt"]).dt.month
 
-    # Step 1: Physics baseline is already in the dataset (tx_lat, tx_lon)
-    # We simulate residuals by adding realistic noise to represent
-    # what IRTAM/SAMI3 correction would fix
-    np.random.seed(42)
-    noise_lat = np.random.normal(0, 0.5, len(df))
-    noise_lon = np.random.normal(0, 0.5, len(df))
-
-    df["baseline_lat"] = df["tx_lat"] + noise_lat
-    df["baseline_lon"] = df["tx_lon"] + noise_lon
-
-    # Residuals = true - baseline (what GP needs to learn)
-    df["residual_lat"] = df["tx_lat"] - df["baseline_lat"]
-    df["residual_lon"] = df["tx_lon"] - df["baseline_lon"]
+    # Real residuals already computed by generate_real_residuals.py
+    # baseline_* = SSL estimate using model height
+    # tx_*       = known true emitter location
+    # residual_* = true - baseline (real physics error, not injected noise)
 
     features = [
         "azimuth", "elevation", "frequency_mhz",
@@ -62,7 +53,7 @@ def train_gp(csv_path: str = None):
     """Train two GPs — one for lat residual, one for lon residual."""
 
     if csv_path is None:
-        csv_path = os.path.join(_ROOT, "data", "processed", "ssl_simulated_dataset.csv")
+        csv_path = os.path.join(_ROOT, "data", "processed", "ssl_real_residuals_2012.csv")
     print("Loading dataset...")
     X, y_lat, y_lon, df, features = load_and_prepare(csv_path)
 
