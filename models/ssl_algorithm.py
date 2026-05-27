@@ -14,6 +14,18 @@ class SSLResult:
     model_used: str
     reason: str
 
+def _extract_height(profile) -> float:
+    """
+    Extract the best available virtual height from any profile type.
+
+    RayHFProfile carries a ray-traced virtual_height_km that supersedes hmF2.
+    All other profile types (IRIProfile, IRTAMProfile) use hmF2 directly.
+    """
+    rayhf_vh = getattr(profile, "virtual_height_km", None)
+    if rayhf_vh is not None and not np.isnan(rayhf_vh):
+        return rayhf_vh
+    return profile.hmF2
+
 def compute_ground_distance(virtual_height_km: float, elevation_deg: float) -> float:
     """
     Classical SSL geometry:
@@ -62,7 +74,7 @@ def ssl_locate(
     """
     Full SSL pipeline:
       1. Get ionospheric profile from hybrid model
-      2. Use hmF2 as virtual height
+      2. Extract virtual height (ray-traced for SAMI3/PyRayHF, hmF2 for all others)
       3. Compute ground distance via geometry
       4. Project along azimuth to get transmitter location
     """
@@ -76,7 +88,7 @@ def ssl_locate(
         dst=dst,
         irtam_available=irtam_available
     )
-    rough_height = iono_init["profile"].hmF2
+    rough_height = _extract_height(iono_init["profile"])
     rough_distance = compute_ground_distance(rough_height, elevation_deg)
     rough_tx_lat, rough_tx_lon = compute_transmitter_location(
         receiver_lat, receiver_lon,
@@ -96,7 +108,7 @@ def ssl_locate(
         dst=dst,
         irtam_available=irtam_available
     )
-    virtual_height_km = iono["profile"].hmF2
+    virtual_height_km = _extract_height(iono["profile"])
 
     # Step 2: Ground distance
     ground_distance_km = compute_ground_distance(virtual_height_km, elevation_deg)
