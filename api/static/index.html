@@ -26,7 +26,6 @@
 
     body {
       background: var(--bg);
-      /* subtle grid overlay — HUD aesthetic */
       background-image:
         linear-gradient(rgba(0,212,245,0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0,212,245,0.03) 1px, transparent 1px);
@@ -55,7 +54,6 @@
       position: relative;
       z-index: 10;
     }
-    /* top cyan accent line */
     header::before {
       content: '';
       position: absolute;
@@ -121,7 +119,6 @@
     .left-scroll::-webkit-scrollbar-track { background: transparent; }
     .left-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    /* Intro blurb */
     .intro {
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -134,7 +131,6 @@
     }
     .intro strong { color: var(--cyan); font-weight: 600; }
 
-    /* Section headings */
     .sec-lbl {
       font-size: 9.5px;
       font-weight: 700;
@@ -146,7 +142,6 @@
       margin-top: 2px;
     }
 
-    /* Field grid */
     .fields { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
     .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .frow.one { grid-template-columns: 1fr; }
@@ -185,7 +180,6 @@
     }
     input[type="datetime-local"] { color-scheme: dark; }
 
-    /* Checkbox row */
     .chk-row {
       display: flex; align-items: center; gap: 9px;
       padding: 7px 10px;
@@ -205,7 +199,6 @@
     }
     .chk-row .tip { margin-left: auto; }
 
-    /* Submit area */
     .submit-area { display: flex; flex-direction: column; gap: 7px; }
     .btn-compute {
       width: 100%;
@@ -258,13 +251,12 @@
     #map {
       flex: 1 1 0;
       min-height: 260px;
-      /* Tiles require internet access — demo only */
     }
 
     /* ─────────────────────── RESULTS PANEL ──────────────────────── */
     .results-panel {
       flex: 0 0 auto;
-      max-height: 40%;
+      max-height: 52%;
       overflow-y: auto;
       border-top: 1px solid var(--border);
       background: var(--surface);
@@ -287,7 +279,6 @@
       gap: 8px;
     }
 
-    /* Card shells */
     .card {
       border-radius: 5px;
       border: 1px solid var(--border);
@@ -327,7 +318,6 @@
     }
     .card-body { padding: 10px 14px; }
 
-    /* Stat grids inside cards */
     .sgrid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -601,9 +591,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // ━━━ Map setup ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Tile layer requires internet access (demo environment).
-    // CartoDB dark tiles match the console colour scheme.
     var map = L.map('map').setView([23, 80], 4);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -657,7 +644,6 @@
       txMarker.openPopup();
     }
 
-    // ━━━ Form submit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     var form     = document.getElementById('loc-form');
     var btn      = document.getElementById('btn');
     var alertBox = document.getElementById('alert-box');
@@ -677,7 +663,6 @@
       var rxLat = parseFloat(document.getElementById('f-rlat').value);
       var rxLon = parseFloat(document.getElementById('f-rlon').value);
       var tsRaw = document.getElementById('f-ts').value;
-      // datetime-local gives "YYYY-MM-DDTHH:MM"; append seconds for ISO 8601
       var ts = tsRaw.length === 16 ? tsRaw + ':00' : tsRaw;
 
       var payload = {
@@ -724,11 +709,10 @@
       })
       .finally(function() {
         btn.disabled = false;
-        btn.textContent = '▷  COMPUTE GEOLOCATION';
+        btn.textContent = '▷  COMPUTE GEOLOCATION';
       });
     });
 
-    // ━━━ Render result ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     function fv(val, unit) {
       if (val === null || val === undefined) {
         return '<span style="color:var(--muted);font-size:12px">n/a</span>';
@@ -737,22 +721,21 @@
     }
 
     function renderResult(data, rxLat, rxLon) {
+      document.getElementById('res-panel').scrollTop = 0;
+
       var pe  = data.primary_estimate;
       var ion = data.ionosphere;
       var gp  = data.gp_correction;
 
-      // Primary estimate
       document.getElementById('r-lat').innerHTML    = fv(pe.transmitter_lat, '&deg;');
       document.getElementById('r-lon').innerHTML    = fv(pe.transmitter_lon, '&deg;');
       document.getElementById('r-dist').innerHTML   = fv(pe.ground_distance_km, ' km');
       document.getElementById('r-vh').innerHTML     = fv(pe.virtual_height_km, ' km');
       document.getElementById('r-method').textContent = pe.method;
 
-      // Ionosphere
       document.getElementById('r-model').textContent  = ion.model_used;
       document.getElementById('r-reason').textContent = ion.reason;
 
-      // GP correction
       document.getElementById('gp-note').textContent   = gp.note;
       document.getElementById('r-gp-lat').innerHTML    = fv(gp.corrected_lat, '&deg;');
       document.getElementById('r-gp-lon').innerHTML    = fv(gp.corrected_lon, '&deg;');

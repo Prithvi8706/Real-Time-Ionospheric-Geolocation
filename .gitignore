@@ -110,3 +110,10 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+graphify-out/cache/
+graphify-out/.graphify_chunk_*.json
+graphify-out/.graphify_python
+graphify-out/cost.json
+graphify-out/manifest.json
+graphify-out/graph.json
