@@ -5,7 +5,7 @@ DRDO Problem ID: DIA-CoE/EW/02
 Exposes the end-to-end SSL geolocation pipeline over HTTP.
 The primary (headline) result is the physics-only SSL estimate.
 The GP correction is a secondary, clearly-labelled framework component
-trained on synthetic residuals — not a validated operational correction.
+trained on real AH223 residuals — per-population (IRTAM / PyRayHF).
 """
 
 import warnings
@@ -28,21 +28,30 @@ from models.ssl_algorithm import ssl_locate, SSLResult
 
 # ── GP model paths ───────────────────────────────────────────────────────
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_GP_LAT_PATH = os.path.join(_ROOT, "models", "saved", "gp_lat.pkl")
-_GP_LON_PATH = os.path.join(_ROOT, "models", "saved", "gp_lon.pkl")
+_SAVED = os.path.join(_ROOT, "models", "saved")
 
-# Load GP models once at startup; failures are non-fatal.
-_gp_lat = None
-_gp_lon = None
+# Per-population GP models (Issue 1 fix)
+_gp_lat_irtam = None
+_gp_lon_irtam = None
+_gp_lat_sami3 = None
+_gp_lon_sami3 = None
 _gp_models_loaded = False
 
 try:
-    _gp_lat = joblib.load(_GP_LAT_PATH)
-    _gp_lon = joblib.load(_GP_LON_PATH)
+    _gp_lat_irtam = joblib.load(os.path.join(_SAVED, "gp_lat_irtam.pkl"))
+    _gp_lon_irtam = joblib.load(os.path.join(_SAVED, "gp_lon_irtam.pkl"))
+    _gp_lat_sami3 = joblib.load(os.path.join(_SAVED, "gp_lat_sami3.pkl"))
+    _gp_lon_sami3 = joblib.load(os.path.join(_SAVED, "gp_lon_sami3.pkl"))
     _gp_models_loaded = True
 except Exception as _e:
     print(f"WARNING: GP model files could not be loaded ({_e}). "
           "GP correction will return null fields.")
+
+# ── Training distribution bounds (for OOD detection) ────────────────────
+# Trained on AH223 (23°N), June/July/December 2012, simulated emitter geometry
+_OOD_MONTHS = {6, 7, 12}
+_OOD_LAT_MIN = 15.0
+_OOD_LAT_MAX = 35.0
 
 # ── Landing page HTML (loaded once at startup) ───────────────────────────
 _STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +63,7 @@ app = FastAPI(
     title="Real-Time Ionospheric Geolocation",
     description=(
         "Single-station HF emitter geolocation via SSL physics + "
-        "hybrid ionospheric model (IRI / PyIRTAM / A-CHAIM). "
+        "hybrid ionospheric model (IRI / PyIRTAM / A-CHAIM / PyRayHF storm-time ray tracer). "
         "DRDO DIA-CoE/EW/02"
     ),
     version="1.0.0",
@@ -86,6 +95,62 @@ class LocateRequest(BaseModel):
             )
         return v
 
+    @field_validator("elevation_deg")
+    @classmethod
+    def _validate_elevation(cls, v: float) -> float:
+        # Issue 2 fix: tan(0) = division by zero; negative = physically impossible
+        if v < 1.0 or v > 60.0:
+            raise ValueError(
+                f"elevation_deg must be between 1.0 and 60.0 degrees (got {v}). "
+                "Values below 1° risk tan(elevation) singularity; "
+                "values above 60° are outside typical HF skywave geometry."
+            )
+        return v
+
+    @field_validator("receiver_lat")
+    @classmethod
+    def _validate_receiver_lat(cls, v: float) -> float:
+        if v < -90.0 or v > 90.0:
+            raise ValueError(f"receiver_lat must be between -90 and 90 (got {v})")
+        return v
+
+    @field_validator("receiver_lon")
+    @classmethod
+    def _validate_receiver_lon(cls, v: float) -> float:
+        if v < -180.0 or v > 180.0:
+            raise ValueError(f"receiver_lon must be between -180 and 180 (got {v})")
+        return v
+
+    @field_validator("azimuth_deg")
+    @classmethod
+    def _validate_azimuth(cls, v: float) -> float:
+        if v < 0.0 or v > 360.0:
+            raise ValueError(f"azimuth_deg must be between 0 and 360 (got {v})")
+        return v
+
+    @field_validator("frequency_mhz")
+    @classmethod
+    def _validate_frequency(cls, v: float) -> float:
+        if v < 2.0 or v > 30.0:
+            raise ValueError(
+                f"frequency_mhz must be in HF band 2–30 MHz (got {v})"
+            )
+        return v
+
+    @field_validator("kp")
+    @classmethod
+    def _validate_kp(cls, v: float) -> float:
+        if v < 0.0 or v > 9.0:
+            raise ValueError(f"kp must be between 0 and 9 (got {v})")
+        return v
+
+    @field_validator("dst")
+    @classmethod
+    def _validate_dst(cls, v: float) -> float:
+        if v < -500.0 or v > 50.0:
+            raise ValueError(f"dst must be between -500 and 50 nT (got {v})")
+        return v
+
 
 class PrimaryEstimate(BaseModel):
     transmitter_lat: float
@@ -107,6 +172,8 @@ class GPCorrection(BaseModel):
     corrected_lon: Optional[float]
     uncertainty_lat_deg: Optional[float]
     uncertainty_lon_deg: Optional[float]
+    ood_warning: bool = False                    # Issue 6: OOD detection
+    correction_std_km: Optional[float] = None   # Issue 6: uncertainty in km
 
 
 class LocateResponse(BaseModel):
@@ -117,28 +184,72 @@ class LocateResponse(BaseModel):
 
 # ── GP correction helper ─────────────────────────────────────────────────
 
-_GP_NOTE = (
-    "GP currently trained on synthetic residuals; not a validated correction. "
-    "Pending retraining on real SSL residuals from AH223 data."
+_GP_NOTE_IRTAM = (
+    "GP correction applied (IRTAM population). "
+    "Trained on AH223 Ahmedabad data, Jun/Jul/Dec 2012, single-hop simulated geometry. "
+    "Do not apply outside this distribution without caution."
 )
 
-_GP_NULL = GPCorrection(
-    status="framework_component",
-    note=_GP_NOTE,
+_GP_NOTE_SAMI3 = (
+    "GP correction applied (PyRayHF storm-time population, 229 rows). "
+    "Trained on AH223 Ahmedabad data, Jun/Jul/Dec 2012, single-hop simulated geometry. "
+    "Small training population — high uncertainty outside training distribution."
+)
+
+_GP_NOTE_NO_MODEL = (
+    "No per-population GP available for this model branch (IRI or A-CHAIM). "
+    "GP correction not applied."
+)
+
+_GP_NULL_NO_MODELS = GPCorrection(
+    status="unavailable",
+    note="GP model files could not be loaded at startup. GP correction disabled.",
     corrected_lat=None,
     corrected_lon=None,
     uncertainty_lat_deg=None,
     uncertainty_lon_deg=None,
+    ood_warning=False,
+    correction_std_km=None,
 )
 
 
+def _is_ood(request: LocateRequest, dt: datetime) -> bool:
+    """Return True if the request is outside the GP training distribution."""
+    month_ood = dt.month not in _OOD_MONTHS
+    lat_ood = (request.receiver_lat < _OOD_LAT_MIN or
+               request.receiver_lat > _OOD_LAT_MAX)
+    return month_ood or lat_ood
+
+
 def apply_gp_correction(ssl_result: SSLResult, request: LocateRequest) -> GPCorrection:
-    """Apply the GP residual correction as a secondary, experimental step."""
-    if not _gp_models_loaded or _gp_lat is None or _gp_lon is None:
-        return _GP_NULL
+    """Apply the GP residual correction — routes by model_used (Issue 1 fix)."""
+    if not _gp_models_loaded:
+        return _GP_NULL_NO_MODELS
+
+    # Issue 1 fix: route to correct per-population GP pair
+    model = ssl_result.model_used
+    if model == "IRTAM":
+        gp_lat, gp_lon = _gp_lat_irtam, _gp_lon_irtam
+        note = _GP_NOTE_IRTAM
+    elif model in ("SAMI3", "PyRayHF"):
+        gp_lat, gp_lon = _gp_lat_sami3, _gp_lon_sami3
+        note = _GP_NOTE_SAMI3
+    else:
+        # IRI or A-CHAIM — no GP for these branches
+        return GPCorrection(
+            status="not_applied",
+            note=_GP_NOTE_NO_MODEL,
+            corrected_lat=None,
+            corrected_lon=None,
+            uncertainty_lat_deg=None,
+            uncertainty_lon_deg=None,
+            ood_warning=False,
+            correction_std_km=None,
+        )
 
     try:
         dt = datetime.fromisoformat(request.timestamp)
+        ood = _is_ood(request, dt)
 
         # Feature vector — order must match training exactly:
         # [azimuth, elevation, frequency_mhz, virtual_height_km,
@@ -152,28 +263,39 @@ def apply_gp_correction(ssl_result: SSLResult, request: LocateRequest) -> GPCorr
             request.dst,
             dt.hour,
             dt.month,
-            ssl_result.transmitter_lat,   # baseline = SSL physics output
+            ssl_result.transmitter_lat,
             ssl_result.transmitter_lon,
         ]])
 
-        residual_lat, std_lat = _gp_lat.predict(features, return_std=True)
-        residual_lon, std_lon = _gp_lon.predict(features, return_std=True)
+        residual_lat, std_lat = gp_lat.predict(features, return_std=True)
+        residual_lon, std_lon = gp_lon.predict(features, return_std=True)
 
         corrected_lat = round(float(ssl_result.transmitter_lat + residual_lat[0]), 4)
         corrected_lon = round(float(ssl_result.transmitter_lon + residual_lon[0]), 4)
 
+        # Approximate correction magnitude in km using std of lat residual
+        correction_std_km = round(float(std_lat[0]) * 111.0, 2)
+
+        if ood:
+            note += (
+                " WARNING: Input is outside GP training distribution "
+                "(month or latitude). Correction reliability is reduced."
+            )
+
         return GPCorrection(
-            status="framework_component",
-            note=_GP_NOTE,
+            status="applied",
+            note=note,
             corrected_lat=corrected_lat,
             corrected_lon=corrected_lon,
             uncertainty_lat_deg=round(float(std_lat[0]), 4),
             uncertainty_lon_deg=round(float(std_lon[0]), 4),
+            ood_warning=ood,
+            correction_std_km=correction_std_km,
         )
 
     except Exception as e:
         print(f"WARNING: GP correction failed: {type(e).__name__}: {e}")
-        return _GP_NULL
+        return _GP_NULL_NO_MODELS
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
@@ -188,6 +310,10 @@ def health():
     return {
         "status": "ok",
         "gp_models_loaded": _gp_models_loaded,
+        "gp_models": {
+            "irtam": _gp_lat_irtam is not None and _gp_lon_irtam is not None,
+            "sami3": _gp_lat_sami3 is not None and _gp_lon_sami3 is not None,
+        }
     }
 
 

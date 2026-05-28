@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-ModelChoice = Literal["IRTAM", "IRI", "A-CHAIM", "SAMI3"]
+ModelChoice = Literal["IRTAM", "IRI", "A-CHAIM", "PyRayHF"]
 
 @dataclass
 class SelectionResult:
@@ -21,16 +21,19 @@ def select_model(
     Decide which ionospheric model to use based on conditions.
 
     Priority order:
-      1. SAMI3   — storm conditions (Kp >= 5 or Dst <= -100)
+      1. PyRayHF — storm conditions (Kp >= 5 or Dst <= -100)
+                   Ray-tracing virtual height via PyRayHF (IRI Ne profile).
+                   Note: SAMI3 physics model is not integrated; PyRayHF is
+                   the storm-time proxy implemented in this slot.
       2. A-CHAIM — high latitudes (|lat| >= 60)
-      3. IRTAM   — real-time, if server is up
+      3. IRTAM   — real-time assimilated, if available
       4. IRI     — calm fallback
     """
 
     if kp >= 5.0 or dst <= -100.0:
         return SelectionResult(
-            model="SAMI3",
-            reason=f"Storm conditions: Kp={kp}, Dst={dst}"
+            model="PyRayHF",
+            reason=f"Storm conditions: Kp={kp}, Dst={dst} — PyRayHF ray-tracing virtual height"
         )
 
     if abs(lat) >= 60.0:
