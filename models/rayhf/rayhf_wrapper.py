@@ -61,6 +61,12 @@ def get_rayhf_profile(lat: float, lon: float, dt: datetime.datetime) -> RayHFPro
     Uses IRI electron density profile as input to the ray tracer.
     Intended for storm-time rows only (kp >= 5 or dst <= -100).
 
+    **Frequency assumption (D8):** PyRayHF is calibrated at _F_MHZ=5.0 MHz,
+    representative of AH223 solar max conditions. Storm GP models
+    (gp_lat_sami3.pkl, gp_lon_sami3.pkl) were trained at this frequency.
+    Passing arbitrary request.frequency_mhz into the GP feature vector while
+    physics runs at 5 MHz is a known limitation — see TODOS.md.
+
     Args:
         lat: Latitude in degrees (N positive)
         lon: Longitude in degrees (E positive)

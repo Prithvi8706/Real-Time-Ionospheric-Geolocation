@@ -37,7 +37,9 @@ def get_ionosphere(
     Master function — selects the right model and returns ionospheric profile.
 
     Returns a dict with:
-      - model_used: which model was selected
+      - model_used: actual model that produced the profile (may differ from
+                    selected_model if a fallback occurred)
+      - selected_model: model that was attempted (audit trail)
       - reason: why that model was chosen
       - profile: IRIProfile or RayHFProfile (NmF2, hmF2, foF2, TEC)
 
@@ -53,19 +55,24 @@ def get_ionosphere(
     selection: SelectionResult = select_model(lat, kp, dst, irtam_available)
     logger.info(f"Model selected: {selection.model} | {selection.reason}")
 
-    # Default to IRI so profile is always bound
-    profile = get_iri_profile(lat, lon, dt)
+    # D3 fix: profile initialised to None — each branch sets it explicitly.
+    # If profile is still None at the return site, something is wrong.
+    profile = None
+    model_used = None
 
     if selection.model == "IRI":
         profile = get_iri_profile(lat, lon, dt)
+        model_used = "IRI"
 
     elif selection.model == "IRTAM":
         irtam_profile = get_irtam_profile(lat, lon, dt)
         if is_irtam_available(irtam_profile):
             profile = irtam_profile
+            model_used = "IRTAM"
         else:
             logger.warning("PyIRTAM returned no usable profile — falling back to IRI")
             profile = get_iri_profile(lat, lon, dt)
+            model_used = "IRI"
 
     elif selection.model == "A-CHAIM":
         achaim_result = get_achaim_profile(lat, lon, ACHAIM_DB_PATH, ACHAIM_EXE_PATH)
@@ -80,9 +87,11 @@ def get_ionosphere(
                 TEC=None,
                 source="A-CHAIM"
             )
+            model_used = "A-CHAIM"
         else:
             logger.warning("A-CHAIM returned None — falling back to IRI")
             profile = get_iri_profile(lat, lon, dt)
+            model_used = "IRI"
 
     elif selection.model == "PyRayHF":
         # Issue 3 fix: renamed from "SAMI3" — this slot uses PyRayHF ray tracing,
@@ -91,12 +100,21 @@ def get_ionosphere(
         rayhf_profile = get_rayhf_profile(lat, lon, dt)
         if is_rayhf_available(rayhf_profile):
             profile = rayhf_profile
+            model_used = "PyRayHF"
         else:
             logger.warning("PyRayHF returned no usable profile — falling back to IRI")
             profile = get_iri_profile(lat, lon, dt)
+            model_used = "IRI"
+
+    if profile is None or model_used is None:
+        raise ValueError(
+            f"No ionospheric profile produced for model='{selection.model}' "
+            f"at lat={lat}, lon={lon}, dt={dt}. This is a bug."
+        )
 
     return {
-        "model_used": selection.model,
+        "model_used": model_used,          # D1: actual model used (GP routes on this)
+        "selected_model": selection.model, # D1: attempted model (audit trail)
         "reason": selection.reason,
         "profile": profile
     }

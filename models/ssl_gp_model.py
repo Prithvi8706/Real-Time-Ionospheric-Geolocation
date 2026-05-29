@@ -106,15 +106,18 @@ def _evaluate(gp_lat, gp_lon, X_test, idx_test, df, tag: str):
 
 def train_gp(csv_path: str = None):
     """
-    Train per-population GPs — one pair for IRTAM rows, one pair for SAMI3 rows.
+    Train per-population GPs — one pair for IRTAM rows, one pair for PyRayHF rows.
 
-    IRTAM and SAMI3/PyRayHF rows have structurally different error patterns.
+    IRTAM and PyRayHF rows have structurally different error patterns.
     Mixing them into a single GP causes the latitude kernel to collapse (length_scale
     near zero, WhiteKernel at lower bound). Training separately recovers the structure.
 
     Saves four models:
         gp_lat_irtam.pkl, gp_lon_irtam.pkl   — nominal ionosphere (97.6% of rows)
         gp_lat_sami3.pkl, gp_lon_sami3.pkl   — storm rows via PyRayHF (2.4% of rows)
+
+    D5 fix: mask_sami3 accepts both 'SAMI3' and 'PyRayHF' labels so residual
+    CSVs generated after the model rename do not silently drop all storm rows.
     """
     if csv_path is None:
         csv_path = os.path.join(_ROOT, "data", "processed", "ssl_real_residuals_2012.csv")
@@ -124,11 +127,12 @@ def train_gp(csv_path: str = None):
 
     # --- Split by model population ---
     mask_irtam = (df["model_used"] == "IRTAM").values
-    mask_sami3 = (df["model_used"] == "SAMI3").values
+    # D5 fix: accept both legacy 'SAMI3' label and current 'PyRayHF' label
+    mask_sami3 = df["model_used"].isin(["SAMI3", "PyRayHF"]).values
 
     print(f"\nPopulation split:")
-    print(f"  IRTAM : {mask_irtam.sum()} rows")
-    print(f"  SAMI3 : {mask_sami3.sum()} rows")
+    print(f"  IRTAM        : {mask_irtam.sum()} rows")
+    print(f"  PyRayHF/SAMI3: {mask_sami3.sum()} rows")
 
     # ── IRTAM population ─────────────────────────────────────────────────────
     X_irtam    = X[mask_irtam]
@@ -144,7 +148,7 @@ def train_gp(csv_path: str = None):
     gp_lat_irtam, gp_lon_irtam = _train_pair(X_tr, ylat_tr, ylon_tr, "IRTAM")
     _evaluate(gp_lat_irtam, gp_lon_irtam, X_te, idx_te, df, "IRTAM")
 
-    # ── SAMI3 population ─────────────────────────────────────────────────────
+    # ── PyRayHF / SAMI3 population ───────────────────────────────────────────
     X_sami3    = X[mask_sami3]
     ylat_sami3 = y_lat[mask_sami3]
     ylon_sami3 = y_lon[mask_sami3]
@@ -155,9 +159,9 @@ def train_gp(csv_path: str = None):
         X_sami3, ylat_sami3, ylon_sami3, idx_sami3,
         test_size=0.2, random_state=42
     )
-    print(f"\nSAMI3 — Train: {len(X_tr2)} | Test: {len(X_te2)}")
-    gp_lat_sami3, gp_lon_sami3 = _train_pair(X_tr2, ylat_tr2, ylon_tr2, "SAMI3")
-    _evaluate(gp_lat_sami3, gp_lon_sami3, X_te2, idx_te2, df, "SAMI3")
+    print(f"\nPyRayHF/SAMI3 — Train: {len(X_tr2)} | Test: {len(X_te2)}")
+    gp_lat_sami3, gp_lon_sami3 = _train_pair(X_tr2, ylat_tr2, ylon_tr2, "PyRayHF/SAMI3")
+    _evaluate(gp_lat_sami3, gp_lon_sami3, X_te2, idx_te2, df, "PyRayHF/SAMI3")
 
     # ── Save all four models ──────────────────────────────────────────────────
     joblib.dump(gp_lat_irtam,  f"{MODEL_DIR}/gp_lat_irtam.pkl")

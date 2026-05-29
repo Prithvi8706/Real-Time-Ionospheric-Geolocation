@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RTIL&#x2011;GEO &middot; DIA&#x2011;CoE/EW/02</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/leaflet.css" />
   <style>
     :root {
       --bg:        #0a0e14;
@@ -484,10 +484,20 @@
                 <input type="number" id="f-dst" value="-10.0" step="1" min="-600" max="50" required>
               </div>
             </div>
-            <div class="chk-row">
-              <input type="checkbox" id="f-irtam" checked>
-              <label for="f-irtam">Enable IRTAM ionospheric model</label>
-              <span class="tip" title="When checked, uses the real-time assimilated IRTAM model for calm geomagnetic conditions instead of the baseline IRI model.">ⓘ</span>
+            <div class="frow">
+              <div class="field">
+                <label>F10.7 Solar Flux (SFU)
+                  <span class="tip" title="Solar flux index at 10.7 cm wavelength. Typical range: 65 (solar minimum) to 250 (solar maximum). 2012 solar max ≈ 130 SFU.">ⓘ</span>
+                </label>
+                <input type="number" id="f-f107" value="130.0" step="1" min="50" max="300" required>
+              </div>
+              <div class="field" style="align-self:end;">
+                <div class="chk-row">
+                  <input type="checkbox" id="f-irtam" checked>
+                  <label for="f-irtam">Enable IRTAM</label>
+                  <span class="tip" title="When checked, uses the real-time assimilated IRTAM model for calm geomagnetic conditions instead of the baseline IRI model.">ⓘ</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -589,13 +599,12 @@
 
   </div><!-- /workspace -->
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/leaflet.js"></script>
   <script>
     var map = L.map('map').setView([23, 80], 4);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     }).addTo(map);
 
@@ -674,6 +683,7 @@
         timestamp:       ts,
         kp:              parseFloat(document.getElementById('f-kp').value),
         dst:             parseFloat(document.getElementById('f-dst').value),
+        f107:            parseFloat(document.getElementById('f-f107').value),
         irtam_available: document.getElementById('f-irtam').checked
       };
 

@@ -86,7 +86,7 @@ def get_irtam_profile(
             float(f107),
             irtam_dir="",      # use package coefficient directory
             use_subdirs=True,
-            download=False,     # fetch date-specific IRTAM coefficients
+            download=False,     # load date-specific IRTAM coefficients from local cache
         )
 
         # run_PyIRTAM returns 12 values; the assimilated PyIRTAM outputs are

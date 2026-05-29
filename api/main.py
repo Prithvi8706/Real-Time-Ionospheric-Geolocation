@@ -10,7 +10,9 @@ trained on real AH223 residuals — per-population (IRTAM / PyRayHF).
 
 import warnings
 import os
+import math
 from datetime import datetime
+from math import sqrt, cos, radians
 from typing import Optional
 
 import numpy as np
@@ -22,6 +24,7 @@ warnings.filterwarnings("ignore", message=".*bottleneck.*")
 import joblib
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
 from models.ssl_algorithm import ssl_locate, SSLResult
@@ -69,6 +72,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# H2: serve Leaflet and other static assets locally — no CDN dependency
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(_STATIC_DIR, "static")),
+    name="static",
+)
+
 
 # ── Request / response schemas ───────────────────────────────────────────
 
@@ -81,6 +91,7 @@ class LocateRequest(BaseModel):
     timestamp: str          # ISO 8601, e.g. "2012-06-15T12:00:00"
     kp: float
     dst: float
+    f107: float = 130.0     # D9: solar flux index; defaults to training-time value
     irtam_available: bool = False
 
     @field_validator("timestamp")
@@ -98,7 +109,6 @@ class LocateRequest(BaseModel):
     @field_validator("elevation_deg")
     @classmethod
     def _validate_elevation(cls, v: float) -> float:
-        # Issue 2 fix: tan(0) = division by zero; negative = physically impossible
         if v < 1.0 or v > 60.0:
             raise ValueError(
                 f"elevation_deg must be between 1.0 and 60.0 degrees (got {v}). "
@@ -151,6 +161,17 @@ class LocateRequest(BaseModel):
             raise ValueError(f"dst must be between -500 and 50 nT (got {v})")
         return v
 
+    @field_validator("f107")
+    @classmethod
+    def _validate_f107(cls, v: float) -> float:
+        # M1: guard against nan/inf which bypass range comparisons silently
+        if math.isnan(v) or math.isinf(v) or v < 50.0 or v > 300.0:
+            raise ValueError(
+                f"f107 must be a finite value between 50 and 300 SFU (got {v}). "
+                "Typical solar cycle range: 65 SFU (minimum) to 250 SFU (extreme maximum)."
+            )
+        return v
+
 
 class PrimaryEstimate(BaseModel):
     transmitter_lat: float
@@ -162,6 +183,7 @@ class PrimaryEstimate(BaseModel):
 
 class IonosphereInfo(BaseModel):
     model_used: str
+    selected_model: str     # D1: attempted model (audit trail)
     reason: str
 
 
@@ -172,14 +194,15 @@ class GPCorrection(BaseModel):
     corrected_lon: Optional[float]
     uncertainty_lat_deg: Optional[float]
     uncertainty_lon_deg: Optional[float]
-    ood_warning: bool = False                    # Issue 6: OOD detection
-    correction_std_km: Optional[float] = None   # Issue 6: uncertainty in km
+    ood_warning: bool = False
+    correction_std_km: Optional[float] = None
 
 
 class LocateResponse(BaseModel):
     primary_estimate: PrimaryEstimate
     ionosphere: IonosphereInfo
     gp_correction: GPCorrection
+    muf_warning: bool = False   # D12: True if frequency_mhz > foF2
 
 
 # ── GP correction helper ─────────────────────────────────────────────────
@@ -213,11 +236,17 @@ _GP_NULL_NO_MODELS = GPCorrection(
 )
 
 
-def _is_ood(request: LocateRequest, dt: datetime) -> bool:
-    """Return True if the request is outside the GP training distribution."""
+def _is_ood(transmitter_lat: float, dt: datetime) -> bool:
+    """
+    Return True if the request is outside the GP training distribution.
+
+    D11 fix: checks transmitter_lat (ssl_result.transmitter_lat) not
+    receiver_lat. GP was trained on baseline_lat (estimated transmitter
+    coordinates) — checking receiver_lat was checking the wrong variable.
+    """
     month_ood = dt.month not in _OOD_MONTHS
-    lat_ood = (request.receiver_lat < _OOD_LAT_MIN or
-               request.receiver_lat > _OOD_LAT_MAX)
+    lat_ood = (transmitter_lat < _OOD_LAT_MIN or
+               transmitter_lat > _OOD_LAT_MAX)
     return month_ood or lat_ood
 
 
@@ -226,7 +255,6 @@ def apply_gp_correction(ssl_result: SSLResult, request: LocateRequest) -> GPCorr
     if not _gp_models_loaded:
         return _GP_NULL_NO_MODELS
 
-    # Issue 1 fix: route to correct per-population GP pair
     model = ssl_result.model_used
     if model == "IRTAM":
         gp_lat, gp_lon = _gp_lat_irtam, _gp_lon_irtam
@@ -249,7 +277,9 @@ def apply_gp_correction(ssl_result: SSLResult, request: LocateRequest) -> GPCorr
 
     try:
         dt = datetime.fromisoformat(request.timestamp)
-        ood = _is_ood(request, dt)
+
+        # D11 fix: pass transmitter_lat, not receiver_lat
+        ood = _is_ood(ssl_result.transmitter_lat, dt)
 
         # Feature vector — order must match training exactly:
         # [azimuth, elevation, frequency_mhz, virtual_height_km,
@@ -273,8 +303,14 @@ def apply_gp_correction(ssl_result: SSLResult, request: LocateRequest) -> GPCorr
         corrected_lat = round(float(ssl_result.transmitter_lat + residual_lat[0]), 4)
         corrected_lon = round(float(ssl_result.transmitter_lon + residual_lon[0]), 4)
 
-        # Approximate correction magnitude in km using std of lat residual
-        correction_std_km = round(float(std_lat[0]) * 111.0, 2)
+        # D10: RSS of lat + lon GP uncertainties, with cos(lat) scaling for lon
+        correction_std_km = round(
+            sqrt(
+                (float(std_lat[0]) * 111.0) ** 2 +
+                (float(std_lon[0]) * 111.0 * cos(radians(ssl_result.transmitter_lat))) ** 2
+            ),
+            2
+        )
 
         if ood:
             note += (
@@ -295,7 +331,18 @@ def apply_gp_correction(ssl_result: SSLResult, request: LocateRequest) -> GPCorr
 
     except Exception as e:
         print(f"WARNING: GP correction failed: {type(e).__name__}: {e}")
-        return _GP_NULL_NO_MODELS
+        # D4: differentiate prediction failure from startup load failure
+        # M2: sanitized note — do not leak sklearn internals to caller
+        return GPCorrection(
+            status="prediction_failed",
+            note="GP correction could not be applied due to an internal model error.",
+            corrected_lat=None,
+            corrected_lon=None,
+            uncertainty_lat_deg=None,
+            uncertainty_lon_deg=None,
+            ood_warning=False,
+            correction_std_km=None,
+        )
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
@@ -307,13 +354,21 @@ def root():
 
 @app.get("/health")
 def health():
+    # D7: expose GP training row counts for pre-demo sanity check
+    gp_training_rows = {}
+    if _gp_lat_irtam is not None:
+        gp_training_rows["irtam"] = int(_gp_lat_irtam.X_train_.shape[0])
+    if _gp_lat_sami3 is not None:
+        gp_training_rows["sami3"] = int(_gp_lat_sami3.X_train_.shape[0])
+
     return {
         "status": "ok",
         "gp_models_loaded": _gp_models_loaded,
         "gp_models": {
             "irtam": _gp_lat_irtam is not None and _gp_lon_irtam is not None,
             "sami3": _gp_lat_sami3 is not None and _gp_lon_sami3 is not None,
-        }
+        },
+        "gp_training_rows": gp_training_rows,   # D7
     }
 
 
@@ -335,6 +390,18 @@ def locate(request: LocateRequest):
 
     gp = apply_gp_correction(ssl_result, request)
 
+    # D12: MUF warning — if frequency exceeds foF2, signal may penetrate ionosphere
+    muf_warning = False
+    muf_note = ""
+    if ssl_result.foF2 is not None and request.frequency_mhz > ssl_result.foF2:
+        muf_warning = True
+        muf_note = (
+            " frequency exceeds foF2 — signal may penetrate ionosphere, "
+            "SSL estimate unreliable."
+        )
+        if gp.note:
+            gp.note += muf_note
+
     return LocateResponse(
         primary_estimate=PrimaryEstimate(
             transmitter_lat=ssl_result.transmitter_lat,
@@ -344,9 +411,11 @@ def locate(request: LocateRequest):
         ),
         ionosphere=IonosphereInfo(
             model_used=ssl_result.model_used,
+            selected_model=ssl_result.selected_model,   # D1 audit trail
             reason=ssl_result.reason,
         ),
         gp_correction=gp,
+        muf_warning=muf_warning,    # D12
     )
 
 

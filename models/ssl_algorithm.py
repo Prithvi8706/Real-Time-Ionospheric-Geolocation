@@ -1,6 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
 from datetime import datetime
+from fastapi import HTTPException
 from models.hybrid_model import get_ionosphere
 
 EARTH_RADIUS_KM = 6371.0
@@ -12,7 +13,9 @@ class SSLResult:
     ground_distance_km: float
     virtual_height_km: float
     model_used: str
+    selected_model: str
     reason: str
+    foF2: float
 
 def _extract_height(profile) -> float:
     """
@@ -20,11 +23,24 @@ def _extract_height(profile) -> float:
 
     RayHFProfile carries a ray-traced virtual_height_km that supersedes hmF2.
     All other profile types (IRIProfile, IRTAMProfile) use hmF2 directly.
+
+    D2 guard: raises HTTPException(503) if the extracted height is not a
+    valid positive float — prevents a downstream TypeError in
+    compute_ground_distance() and produces a clean error during demos.
     """
     rayhf_vh = getattr(profile, "virtual_height_km", None)
     if rayhf_vh is not None and not np.isnan(rayhf_vh):
-        return rayhf_vh
-    return profile.hmF2
+        height = rayhf_vh
+    else:
+        height = profile.hmF2
+
+    if height is None or (isinstance(height, float) and np.isnan(height)) or height <= 0:
+        raise HTTPException(
+            status_code=503,
+            detail="Ionospheric model unavailable (IRI profile returned null)"
+        )
+
+    return height
 
 def compute_ground_distance(virtual_height_km: float, elevation_deg: float) -> float:
     """
@@ -74,7 +90,7 @@ def ssl_locate(
     """
     Full SSL pipeline:
       1. Get ionospheric profile from hybrid model
-      2. Extract virtual height (ray-traced for SAMI3/PyRayHF, hmF2 for all others)
+      2. Extract virtual height (ray-traced for PyRayHF, hmF2 for all others)
       3. Compute ground distance via geometry
       4. Project along azimuth to get transmitter location
     """
@@ -119,11 +135,16 @@ def ssl_locate(
         azimuth_deg, ground_distance_km
     )
 
+    # Extract foF2 for MUF check in api/main.py (D12)
+    foF2 = getattr(iono["profile"], "foF2", None)
+
     return SSLResult(
         transmitter_lat=round(tx_lat, 4),
         transmitter_lon=round(tx_lon, 4),
         ground_distance_km=round(ground_distance_km, 2),
         virtual_height_km=round(virtual_height_km, 2),
         model_used=iono["model_used"],
-        reason=iono["reason"]
+        selected_model=iono["selected_model"],
+        reason=iono["reason"],
+        foF2=foF2
     )
