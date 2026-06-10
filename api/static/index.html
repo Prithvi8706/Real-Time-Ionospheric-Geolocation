@@ -1,762 +1,1456 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RTIL&#x2011;GEO &middot; DIA&#x2011;CoE/EW/02</title>
-  <link rel="stylesheet" href="/static/leaflet.css" />
-  <style>
-    :root {
-      --bg:        #0a0e14;
-      --surface:   #121820;
-      --surface2:  #1a2130;
-      --border:    #242f3e;
-      --cyan:      #00d4f5;
-      --cyan-bg:   rgba(0,212,245,0.07);
-      --cyan-mid:  rgba(0,212,245,0.18);
-      --amber:     #f0a040;
-      --amber-bg:  rgba(240,160,64,0.07);
-      --text:      #c8d3de;
-      --muted:     #5e7385;
-      --green:     #3fb950;
-      --red:       #f85149;
-      --mono:      ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTIL&#x2011;GEO &middot; DIA&#x2011;CoE/EW/02</title>
+<link rel="stylesheet" href="/static/leaflet.css" />
+<style>
+/* ════════════════════════════ TOKENS ════════════════════════════ */
+:root {
+  --bg:        #070b12;
+  --surface:   #0d141f;
+  --surface2:  #121b2a;
+  --inset:     #0a0f18;
+  --border:    #1c2940;
+  --border-hi: #2b3d5c;
+  --cyan:      #00d4f5;
+  --cyan-dim:  #0a7d92;
+  --cyan-bg:   rgba(0,212,245,0.06);
+  --cyan-line: rgba(0,212,245,0.22);
+  --amber:     #f5b04a;
+  --amber-bg:  rgba(245,176,74,0.06);
+  --amber-line:rgba(245,176,74,0.25);
+  --text:      #d2dce8;
+  --muted:     #7d92a8;
+  --faint:     #43586f;
+  --green:     #46c97a;
+  --red:       #ff6056;
+  --red-bg:    rgba(255,96,86,0.07);
+  --mono:      "Cascadia Code", ui-monospace, "Fira Code", Consolas, monospace;
+  --sans:      system-ui, -apple-system, "Segoe UI", sans-serif;
+  --z-overlay: 500;   /* map overlays sit above leaflet panes (400) */
+  --z-header:  600;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      background: var(--bg);
-      background-image:
-        linear-gradient(rgba(0,212,245,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,212,245,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-      color: var(--text);
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      font-size: 13px;
-      line-height: 1.5;
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  background-image:
+    linear-gradient(rgba(0,212,245,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,245,0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-    /* ─────────────────────────── HEADER ─────────────────────────── */
-    header {
-      flex: 0 0 auto;
-      height: 54px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 24px;
-      gap: 16px;
-      position: relative;
-      z-index: 10;
-    }
-    header::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, var(--cyan) 0%, transparent 60%);
-    }
-    .h-brand { display: flex; align-items: center; gap: 14px; }
-    .h-logo {
-      font-family: var(--mono);
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--cyan);
-      letter-spacing: 0.08em;
-      text-shadow: 0 0 18px rgba(0,212,245,0.45);
-      white-space: nowrap;
-    }
-    .h-sep { width: 1px; height: 22px; background: var(--border); }
-    .h-meta { font-size: 11px; color: var(--muted); line-height: 1.4; }
-    .h-meta strong { color: var(--text); font-weight: 500; }
-    .status-pill {
-      display: flex; align-items: center; gap: 7px;
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--green);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-    .status-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-      animation: pulse 2.5s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+/* ════════════════════════════ HEADER ════════════════════════════ */
+header {
+  flex: 0 0 auto;
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 16px;
+  position: relative;
+  z-index: var(--z-header);
+}
+header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan) 0%, transparent 55%);
+}
+.h-logo {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 16px rgba(0,212,245,0.4);
+  white-space: nowrap;
+}
+.h-sep { width: 1px; height: 24px; background: var(--border); flex: 0 0 auto; }
+.h-meta { font-size: 11px; color: var(--muted); line-height: 1.35; min-width: 0; }
+.h-meta strong { color: var(--text); font-weight: 600; }
+.h-spacer { flex: 1; }
 
-    /* ──────────────────────── WORKSPACE ─────────────────────────── */
-    .workspace {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 408px 1fr;
-      overflow: hidden;
-    }
+.h-health {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.h-health .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--faint);
+  flex: 0 0 auto;
+}
+.h-health.ok .dot   { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2.5s ease-in-out infinite; }
+.h-health.ok        { color: var(--green); }
+.h-health.bad .dot  { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.h-health.bad       { color: var(--red); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
-    /* ─────────────────────── LEFT PANEL ─────────────────────────── */
-    .left-panel {
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .left-scroll {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px 18px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .left-scroll::-webkit-scrollbar { width: 4px; }
-    .left-scroll::-webkit-scrollbar-track { background: transparent; }
-    .left-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.h-clock {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.h-clock .utc { font-size: 9px; color: var(--faint); letter-spacing: 0.16em; margin-left: 5px; }
 
-    .intro {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--cyan);
-      border-radius: 0 5px 5px 0;
-      padding: 11px 14px;
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-    .intro strong { color: var(--cyan); font-weight: 600; }
+/* ════════════════════════════ WORKSPACE ════════════════════════════ */
+.workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 352px 1fr 372px;
+  min-height: 0;
+}
 
-    .sec-lbl {
-      font-size: 9.5px;
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--muted);
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
-      margin-top: 2px;
-    }
+/* ──────────────────────────── LEFT: INPUTS ──────────────────────── */
+.panel-l {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 14px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.panel-l::-webkit-scrollbar, .panel-r::-webkit-scrollbar { width: 4px; }
+.panel-l::-webkit-scrollbar-thumb, .panel-r::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.panel-l::-webkit-scrollbar-track, .panel-r::-webkit-scrollbar-track { background: transparent; }
 
-    .fields { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-    .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .frow.one { grid-template-columns: 1fr; }
-    .field { display: flex; flex-direction: column; gap: 3px; }
-    .field label {
-      font-size: 10.5px;
-      color: var(--muted);
-      display: flex; align-items: center; gap: 4px;
-    }
-    .tip {
-      font-size: 11px;
-      color: #2e4055;
-      cursor: help;
-      transition: color 0.15s;
-      user-select: none;
-    }
-    .tip:hover { color: var(--cyan); }
+.sec-lbl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex; align-items: center; gap: 8px;
+}
+.sec-lbl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    input[type="number"],
-    input[type="datetime-local"] {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 12.5px;
-      padding: 6px 9px;
-      outline: none;
-      width: 100%;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    input[type="number"]:focus,
-    input[type="datetime-local"]:focus {
-      border-color: var(--cyan);
-      box-shadow: 0 0 0 2px rgba(0,212,245,0.1);
-    }
-    input[type="datetime-local"] { color-scheme: dark; }
+/* presets */
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.preset {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.preset:hover  { border-color: var(--border-hi); color: var(--text); }
+.preset:focus-visible { outline: 1px solid var(--cyan); outline-offset: 1px; }
+.preset b { display: block; color: var(--text); font-size: 10.5px; font-weight: 600; margin-bottom: 1px; }
+.preset:hover b { color: var(--cyan); }
 
-    .chk-row {
-      display: flex; align-items: center; gap: 9px;
-      padding: 7px 10px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-    }
-    input[type="checkbox"] {
-      width: 14px; height: 14px;
-      accent-color: var(--cyan);
-      cursor: pointer;
-      flex: 0 0 auto;
-    }
-    .chk-row label {
-      font-size: 12px; color: var(--text);
-      cursor: pointer; flex: 1;
-    }
-    .chk-row .tip { margin-left: auto; }
+/* fields */
+.fields { display: flex; flex-direction: column; gap: 9px; }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.frow.one { grid-template-columns: 1fr; }
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field > label {
+  font-size: 10.5px;
+  color: var(--muted);
+  display: flex; align-items: baseline; gap: 4px;
+}
+.field .u { color: var(--faint); font-size: 9.5px; }
+.tip {
+  font-size: 11px; color: var(--faint);
+  cursor: help; user-select: none; margin-left: auto;
+  transition: color 0.15s;
+}
+.tip:hover { color: var(--cyan); }
 
-    .submit-area { display: flex; flex-direction: column; gap: 7px; }
-    .btn-compute {
-      width: 100%;
-      padding: 10px;
-      background: transparent;
-      border: 1px solid var(--cyan);
-      border-radius: 4px;
-      color: var(--cyan);
-      font-family: var(--mono);
-      font-size: 11.5px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.15s, box-shadow 0.15s;
-    }
-    .btn-compute:hover:not(:disabled) {
-      background: var(--cyan-bg);
-      box-shadow: 0 0 18px rgba(0,212,245,0.15);
-    }
-    .btn-compute:disabled { opacity: 0.4; cursor: not-allowed; }
+input[type="number"], input[type="datetime-local"] {
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 6px 9px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input[type="number"]:hover, input[type="datetime-local"]:hover { border-color: var(--border-hi); }
+input[type="number"]:focus, input[type="datetime-local"]:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(0,212,245,0.12);
+}
+input[type="datetime-local"] { color-scheme: dark; }
+input:invalid { border-color: var(--red); }
 
-    .alert {
-      display: none;
-      font-size: 11.5px;
-      padding: 8px 11px;
-      border-radius: 4px;
-      font-family: var(--mono);
-      line-height: 1.5;
-    }
-    .alert.loading {
-      display: block;
-      color: var(--cyan);
-      background: var(--cyan-bg);
-      border: 1px solid rgba(0,212,245,0.2);
-    }
-    .alert.error {
-      display: block;
-      color: var(--red);
-      background: rgba(248,81,73,0.07);
-      border: 1px solid rgba(248,81,73,0.2);
-    }
+/* Kp slider */
+.kp-wrap { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; }
+.kp-rail { position: relative; padding-top: 2px; }
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 18px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg,
+    var(--green) 0%, var(--green) 38%,
+    var(--amber) 47%, var(--amber) 53%,
+    var(--red) 60%, var(--red) 100%);
+  opacity: 0.85;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--text);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 6px rgba(0,0,0,0.6);
+  margin-top: -4px;
+}
+input[type="range"]::-moz-range-track {
+  height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg,
+    var(--green) 0%, var(--green) 38%,
+    var(--amber) 47%, var(--amber) 53%,
+    var(--red) 60%, var(--red) 100%);
+  opacity: 0.85;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--text); border: 2px solid var(--bg);
+}
+input[type="range"]:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; border-radius: 3px; }
+.kp-storm-tick {
+  position: absolute;
+  left: calc(55.5% - 1px); top: 0;
+  width: 1px; height: 9px;
+  background: var(--red);
+  pointer-events: none;
+}
+.kp-storm-tick::after {
+  content: 'STORM';
+  position: absolute; top: -2px; left: 4px;
+  font-family: var(--mono); font-size: 7.5px;
+  letter-spacing: 0.1em; color: var(--red);
+  opacity: 0.8;
+}
 
-    /* ─────────────────────── RIGHT PANEL ─────────────────────────── */
-    .right-panel {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    #map {
-      flex: 1 1 0;
-      min-height: 260px;
-    }
+.chk-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); cursor: pointer; flex: 0 0 auto; }
+.chk-row label { font-size: 12px; color: var(--text); cursor: pointer; flex: 1; }
 
-    /* ─────────────────────── RESULTS PANEL ──────────────────────── */
-    .results-panel {
-      flex: 0 0 auto;
-      max-height: 52%;
-      overflow-y: auto;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-    }
-    .results-panel::-webkit-scrollbar { width: 4px; }
-    .results-panel::-webkit-scrollbar-track { background: transparent; }
-    .results-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+/* ── model routing panel ── */
+.routing { display: flex; flex-direction: column; gap: 5px; }
+.route-row {
+  display: grid;
+  grid-template-columns: 14px 86px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 9px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.route-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--faint);
+  transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.route-name { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--muted); transition: color 0.2s; }
+.route-cond { font-family: var(--mono); font-size: 9px; color: var(--faint); letter-spacing: 0.02em; line-height: 1.4; }
+.route-row.armed {
+  border-color: var(--cyan-line);
+  background: var(--cyan-bg);
+}
+.route-row.armed .route-dot  { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.route-row.armed .route-name { color: var(--cyan); }
+.route-row.actual .route-dot  { background: var(--green); border-color: var(--green); box-shadow: 0 0 8px var(--green); }
+.route-row.actual { border-color: rgba(70,201,122,0.35); }
+.route-row.actual .route-name { color: var(--green); }
+.route-note {
+  font-family: var(--mono);
+  font-size: 9px; color: var(--faint);
+  letter-spacing: 0.04em;
+  padding: 1px 2px;
+}
+.route-note .fb { color: var(--amber); }
 
-    .res-empty {
-      padding: 18px 24px;
-      color: var(--muted);
-      font-size: 12px;
-      text-align: center;
-      letter-spacing: 0.02em;
-    }
-    .res-cards {
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+/* submit */
+.btn-compute {
+  width: 100%;
+  padding: 11px;
+  background: transparent;
+  border: 1px solid var(--cyan);
+  border-radius: 4px;
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+.btn-compute:hover:not(:disabled)  { background: var(--cyan-bg); box-shadow: 0 0 18px rgba(0,212,245,0.18); }
+.btn-compute:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.btn-compute:active:not(:disabled) { background: var(--cyan-line); }
+.btn-compute:disabled { opacity: 0.45; cursor: progress; }
 
-    .card {
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-    .card-hdr {
-      padding: 7px 14px;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .card-hdr.primary {
-      background: var(--cyan-bg);
-      border-bottom: 1px solid rgba(0,212,245,0.14);
-      color: var(--cyan);
-    }
-    .card-hdr.iono {
-      background: rgba(255,255,255,0.02);
-      border-bottom: 1px solid var(--border);
-      color: var(--muted);
-    }
-    .card-hdr.gp {
-      background: var(--amber-bg);
-      border-bottom: 1px solid rgba(240,160,64,0.14);
-      color: var(--amber);
-    }
-    .exp-tag {
-      font-size: 8px;
-      padding: 2px 6px;
-      border-radius: 3px;
-      background: rgba(240,160,64,0.12);
-      border: 1px solid rgba(240,160,64,0.25);
-      color: var(--amber);
-      letter-spacing: 0.1em;
-    }
-    .card-body { padding: 10px 14px; }
+.alert {
+  display: none;
+  font-size: 11.5px;
+  padding: 8px 11px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  line-height: 1.55;
+  word-break: break-word;
+}
+.alert.error { display: block; color: var(--red); background: var(--red-bg); border: 1px solid rgba(255,96,86,0.25); }
 
-    .sgrid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px 14px;
-    }
-    .sgrid.two { grid-template-columns: 1fr 1fr; }
-    .stat { display: flex; flex-direction: column; gap: 2px; }
-    .stat-lbl {
-      font-size: 9px;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    .stat-val {
-      font-family: var(--mono);
-      font-size: 14px;
-      color: var(--text);
-      line-height: 1.2;
-    }
-    .stat-val.c  { color: var(--cyan); font-size: 16px; }
-    .stat-val.a  { color: var(--amber); font-size: 14px; }
-    .stat-val.sm { font-size: 12px; color: var(--muted); }
-    .unit { font-size: 10px; color: var(--muted); margin-left: 2px; }
-    .method-note {
-      margin-top: 9px;
-      font-size: 10.5px;
-      color: var(--muted);
-      font-style: italic;
-    }
-    .gp-warning {
-      font-size: 11px;
-      line-height: 1.55;
-      color: var(--amber);
-      background: rgba(240,160,64,0.06);
-      border: 1px solid rgba(240,160,64,0.15);
-      border-radius: 4px;
-      padding: 7px 10px;
-      margin-bottom: 9px;
-    }
+/* pipeline stages (computing state) */
+.pipeline { display: none; flex-direction: column; gap: 3px; }
+.pipeline.on { display: flex; }
+.stage {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  padding: 2px 2px;
+  letter-spacing: 0.03em;
+  transition: color 0.25s;
+}
+.stage::before {
+  content: '';
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--faint);
+  flex: 0 0 auto;
+  transition: background 0.25s, box-shadow 0.25s;
+}
+.stage.live { color: var(--cyan); }
+.stage.live::before { background: var(--cyan); box-shadow: 0 0 7px var(--cyan); }
 
-    /* ─────────────── LEAFLET DARK OVERRIDES ────────────────────── */
-    .leaflet-container { background: #0c1018 !important; }
-    .leaflet-control-zoom a {
-      background: var(--surface) !important;
-      color: var(--text) !important;
-      border-color: var(--border) !important;
-    }
-    .leaflet-control-zoom a:hover { background: var(--surface2) !important; }
-    .leaflet-control-attribution {
-      background: rgba(10,14,20,0.75) !important;
-      color: #3d5060 !important;
-      font-size: 9px !important;
-    }
-    .leaflet-control-attribution a { color: #3d5060 !important; }
-    .leaflet-popup-content-wrapper {
-      background: var(--surface) !important;
-      color: var(--text) !important;
-      border: 1px solid var(--border) !important;
-      border-radius: 5px !important;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
-    }
-    .leaflet-popup-tip { background: var(--surface) !important; }
-  </style>
+/* ──────────────────────────── CENTER: MAP ───────────────────────── */
+.panel-map { position: relative; min-width: 0; min-height: 0; }
+#map { position: absolute; inset: 0; }
+
+/* dark cartography from light OSM tiles */
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(185deg) saturate(0.4) brightness(0.92) contrast(0.92);
+}
+.leaflet-container { background: #0b1019 !important; font-family: var(--sans) !important; }
+.leaflet-control-zoom a {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--surface2) !important; }
+.leaflet-control-attribution {
+  background: rgba(7,11,18,0.78) !important;
+  color: var(--faint) !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a { color: var(--faint) !important; }
+.leaflet-tooltip.tip-dark {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.55);
+  padding: 5px 8px;
+}
+.leaflet-tooltip.tip-dark::before { display: none; }
+
+/* map markers (divIcons) */
+.mk { position: relative; }
+.mk-rx {
+  width: 14px; height: 14px;
+  background: var(--cyan);
+  border: 2px solid rgba(255,255,255,0.6);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--cyan);
+}
+.mk-rx::after {
+  content: '';
+  position: absolute; inset: -7px;
+  border: 1px solid var(--cyan);
+  border-radius: 50%;
+  opacity: 0.55;
+  animation: ring 2.6s ease-out infinite;
+}
+@keyframes ring {
+  0%   { transform: scale(0.55); opacity: 0.7; }
+  100% { transform: scale(1.5);  opacity: 0; }
+}
+.mk-tx {
+  width: 14px; height: 14px;
+  background: var(--cyan);
+  border: 2px solid rgba(255,255,255,0.65);
+  transform: rotate(45deg);
+  box-shadow: 0 0 12px var(--cyan);
+}
+.mk-gp {
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 13px solid var(--amber);
+  filter: drop-shadow(0 0 6px var(--amber));
+}
+.mk-apex {
+  width: 8px; height: 8px;
+  background: rgba(210,220,232,0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 9px rgba(210,220,232,0.8);
+}
+
+/* propagation arc animation */
+.prop-arc { stroke-dasharray: 8 7; animation: flow 1.1s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -15; } }
+
+/* map cursor readout */
+.map-readout {
+  position: absolute;
+  right: 10px; bottom: 26px;
+  z-index: var(--z-overlay);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: rgba(7,11,18,0.8);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 9px;
+  pointer-events: none;
+}
+.map-legend {
+  position: absolute;
+  left: 10px; bottom: 26px;
+  z-index: var(--z-overlay);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted);
+  background: rgba(7,11,18,0.8);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  pointer-events: none;
+}
+.map-legend.on { display: flex; }
+.lg { display: flex; align-items: center; gap: 7px; }
+.lg i { width: 9px; height: 9px; flex: 0 0 auto; display: inline-block; }
+.lg .i-rx { background: var(--cyan); border-radius: 50%; }
+.lg .i-tx { background: var(--cyan); transform: rotate(45deg); }
+.lg .i-gp { width: 0; height: 0; background: none;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-bottom: 9px solid var(--amber); }
+.lg .i-cr { border: 1px solid var(--amber); border-radius: 50%; background: rgba(245,176,74,0.15); }
+
+/* compute veil over map */
+.map-veil {
+  position: absolute; inset: 0;
+  z-index: var(--z-overlay);
+  background: rgba(7,11,18,0.35);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.map-veil.on { display: flex; }
+.veil-txt {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ──────────────────────────── RIGHT: SOLUTION ───────────────────── */
+.panel-r {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.r-empty {
+  padding: 28px 22px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.r-empty .ttl {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--faint);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.r-empty p + p { margin-top: 10px; }
+.r-empty strong { color: var(--text); font-weight: 600; }
+
+#solution { display: none; flex-direction: column; }
+#solution.on { display: flex; }
+
+.r-sec {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 14px;
+}
+.r-sec-lbl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.r-sec-lbl .tag {
+  font-size: 8px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.1em;
+  background: rgba(245,176,74,0.12);
+  border: 1px solid var(--amber-line);
+  color: var(--amber);
+}
+
+/* hop cross-section */
+.hop-wrap { background: var(--inset); border: 1px solid var(--border); border-radius: 5px; padding: 4px 2px 0; }
+#hop-svg { display: block; width: 100%; height: auto; }
+.hop-cap {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--faint);
+  text-align: center;
+  padding: 2px 6px 7px;
+  letter-spacing: 0.04em;
+}
+
+/* solution stat grids */
+.coord-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.coord {
+  display: flex; flex-direction: column; gap: 1px;
+}
+.coord .k { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.coord .v { font-family: var(--mono); font-size: 17px; color: var(--cyan); line-height: 1.25; }
+.coord .v.am { color: var(--amber); font-size: 15px; }
+.sgrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; }
+.sgrid.two { grid-template-columns: 1fr 1fr; }
+.stat { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.stat .k { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+.stat .v .u { font-size: 9.5px; color: var(--faint); margin-left: 2px; }
+.method-note { margin-top: 9px; font-size: 10.5px; color: var(--muted); font-style: italic; }
+
+/* model used block */
+.model-line {
+  display: flex; align-items: baseline; gap: 9px;
+  font-family: var(--mono);
+  margin-bottom: 4px;
+}
+.model-line .name { font-size: 14px; font-weight: 700; color: var(--text); }
+.model-line .fb-tag {
+  font-size: 8.5px; letter-spacing: 0.1em;
+  color: var(--amber);
+  border: 1px solid var(--amber-line);
+  background: var(--amber-bg);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+.model-reason { font-size: 11px; color: var(--muted); line-height: 1.55; }
+
+/* warnings */
+.warn {
+  display: flex; gap: 9px;
+  font-size: 11px;
+  line-height: 1.55;
+  border-radius: 4px;
+  padding: 8px 11px;
+  margin-bottom: 9px;
+}
+.warn .ic { font-family: var(--mono); font-weight: 700; flex: 0 0 auto; }
+.warn.red   { color: var(--red);   background: var(--red-bg);   border: 1px solid rgba(255,96,86,0.25); }
+.warn.amber { color: var(--amber); background: var(--amber-bg); border: 1px solid var(--amber-line); }
+
+.gp-note { font-size: 10.5px; color: var(--muted); line-height: 1.6; margin-top: 9px; }
+.gp-unavail { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+/* ════════════════════════════ FOOTER ════════════════════════════ */
+footer {
+  flex: 0 0 auto;
+  height: 26px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+}
+footer .f-item b { color: var(--muted); font-weight: 600; }
+footer .f-spacer { flex: 1; }
+
+/* ════════════════════════ RESPONSIVE ════════════════════════ */
+@media (max-width: 1180px) {
+  body { overflow: auto; height: auto; }
+  .workspace { grid-template-columns: 1fr; }
+  .panel-l { border-right: none; border-bottom: 1px solid var(--border); overflow: visible; }
+  .panel-map { height: 60vh; min-height: 380px; }
+  .panel-r { border-left: none; border-top: 1px solid var(--border); overflow: visible; }
+}
+
+/* ════════════════════════ REDUCED MOTION ════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .mk-rx::after { animation: none; opacity: 0; }
+  .prop-arc { animation: none; }
+  .h-health.ok .dot, .veil-txt { animation: none; }
+  .hop-ray { stroke-dashoffset: 0 !important; transition: none !important; }
+}
+</style>
 </head>
 <body>
 
-  <!-- ━━━━━━━━━━━━━━━ HEADER ━━━━━━━━━━━━━━━ -->
-  <header>
-    <div class="h-brand">
-      <span class="h-logo">RTIL&#x2011;GEO</span>
-      <div class="h-sep"></div>
-      <div class="h-meta">
-        <strong>Real-Time Ionospheric Geolocation</strong><br>
-        DRDO&nbsp; DIA&#x2011;CoE/EW/02 &nbsp;&middot;&nbsp; Single-Station HF Emitter Localisation
+<!-- ════════════════════════════ HEADER ════════════════════════════ -->
+<header>
+  <span class="h-logo">RTIL&#x2011;GEO</span>
+  <div class="h-sep"></div>
+  <div class="h-meta">
+    <strong>Real-Time Ionospheric Geolocation</strong><br>
+    DRDO&nbsp;DIA&#x2011;CoE/EW/02&nbsp;&nbsp;&middot;&nbsp;&nbsp;Single-Station HF Emitter Localisation
+  </div>
+  <div class="h-spacer"></div>
+  <div class="h-health" id="health"><span class="dot"></span><span id="health-txt">CHECKING API&hellip;</span></div>
+  <div class="h-sep"></div>
+  <div class="h-clock"><span id="clock">--:--:--</span><span class="utc">UTC</span></div>
+</header>
+
+<!-- ════════════════════════════ WORKSPACE ════════════════════════════ -->
+<div class="workspace">
+
+  <!-- ━━━ LEFT: INTERCEPT PARAMETERS ━━━ -->
+  <div class="panel-l">
+
+    <div>
+      <div class="sec-lbl" style="margin-bottom:7px;">Scenario Presets</div>
+      <div class="presets">
+        <button type="button" class="preset" data-preset="nominal"><b>Nominal mid-lat</b>Kp 1, IRTAM feed live</button>
+        <button type="button" class="preset" data-preset="storm"><b>Geomagnetic storm</b>Kp 7, Dst &minus;150 nT</button>
+        <button type="button" class="preset" data-preset="polar"><b>High latitude</b>Receiver at 65&deg;N</button>
+        <button type="button" class="preset" data-preset="calm"><b>Calm, no feed</b>IRTAM unavailable</button>
       </div>
     </div>
-    <div class="status-pill">
-      <div class="status-dot"></div>OPERATIONAL
+
+    <form id="loc-form" autocomplete="off">
+      <div class="sec-lbl" style="margin-bottom:9px;">Station &amp; Signal</div>
+      <div class="fields">
+        <div class="frow">
+          <div class="field">
+            <label for="f-rlat">Receiver lat <span class="u">&deg;</span>
+              <span class="tip" title="Latitude of the receiving station in decimal degrees. South is negative.">&#9432;</span></label>
+            <input type="number" id="f-rlat" value="23.0" step="0.01" min="-90" max="90" required>
+          </div>
+          <div class="field">
+            <label for="f-rlon">Receiver lon <span class="u">&deg;</span>
+              <span class="tip" title="Longitude of the receiving station in decimal degrees. West is negative.">&#9432;</span></label>
+            <input type="number" id="f-rlon" value="72.5" step="0.01" min="-180" max="180" required>
+          </div>
+        </div>
+        <div class="frow">
+          <div class="field">
+            <label for="f-az">Azimuth <span class="u">&deg; true</span>
+              <span class="tip" title="Bearing of signal arrival: 0 = north, 90 = east, 180 = south, 270 = west.">&#9432;</span></label>
+            <input type="number" id="f-az" value="45.0" step="0.1" min="0" max="360" required>
+          </div>
+          <div class="field">
+            <label for="f-el">Elevation <span class="u">&deg; (1&ndash;60)</span>
+              <span class="tip" title="Arrival angle above the horizon. Higher elevation means a shorter skip and a closer emitter. The API accepts 1 to 60 degrees.">&#9432;</span></label>
+            <input type="number" id="f-el" value="30.0" step="0.1" min="1" max="60" required>
+          </div>
+        </div>
+        <div class="frow" style="grid-template-columns: 0.8fr 1.2fr;">
+          <div class="field">
+            <label for="f-freq">Frequency <span class="u">MHz (2&ndash;30)</span>
+              <span class="tip" title="HF carrier frequency. Skywave propagation occupies 2 to 30 MHz; above the layer's critical frequency foF2 the signal penetrates instead of reflecting.">&#9432;</span></label>
+            <input type="number" id="f-freq" value="10.0" step="0.1" min="2" max="30" required>
+          </div>
+          <div class="field">
+            <label for="f-ts">Time of intercept <span class="u">UTC</span>
+              <span class="tip" title="Timestamp of the intercept. The ionospheric model is queried for this exact moment.">&#9432;</span></label>
+            <input type="datetime-local" id="f-ts" value="2012-06-15T12:00" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-lbl" style="margin:14px 0 9px;">Space Weather</div>
+      <div class="fields">
+        <div class="field">
+          <label for="f-kp">Kp index <span class="u">0 calm &ndash; 9 extreme</span>
+            <span class="tip" title="Planetary geomagnetic activity index. At Kp 5 and above the pipeline switches to the PyRayHF storm-time ray tracer.">&#9432;</span></label>
+          <div class="kp-wrap">
+            <div class="kp-rail">
+              <input type="range" id="f-kp-rail" min="0" max="9" step="0.1" value="1.0" aria-label="Kp index slider">
+              <div class="kp-storm-tick"></div>
+            </div>
+            <input type="number" id="f-kp" value="1.0" step="0.1" min="0" max="9" required>
+          </div>
+        </div>
+        <div class="frow">
+          <div class="field">
+            <label for="f-dst">Dst <span class="u">nT, storm &le; &minus;100</span>
+              <span class="tip" title="Ring-current storm index in nanotesla. Near 0 is calm; at or below -100 nT the storm branch is selected.">&#9432;</span></label>
+            <input type="number" id="f-dst" value="-10.0" step="1" min="-500" max="50" required>
+          </div>
+          <div class="field">
+            <label for="f-f107">F10.7 flux <span class="u">SFU</span>
+              <span class="tip" title="Solar radio flux at 10.7 cm. Range 50 to 300 SFU; the 2012 training period sat near 130.">&#9432;</span></label>
+            <input type="number" id="f-f107" value="130.0" step="1" min="50" max="300" required>
+          </div>
+        </div>
+        <div class="chk-row">
+          <input type="checkbox" id="f-irtam" checked>
+          <label for="f-irtam">IRTAM real-time feed available</label>
+          <span class="tip" title="When live GIRO assimilation data is available, nominal conditions route to PyIRTAM instead of the IRI-2016 climatology.">&#9432;</span>
+        </div>
+      </div>
+
+      <div class="sec-lbl" style="margin:14px 0 9px;">Model Routing</div>
+      <div class="routing" id="routing">
+        <div class="route-row" data-model="PYRAYHF">
+          <span class="route-dot"></span>
+          <span class="route-name">PyRayHF</span>
+          <span class="route-cond">storm ray tracer &middot; Kp &ge; 5 or Dst &le; &minus;100 nT</span>
+        </div>
+        <div class="route-row" data-model="A-CHAIM">
+          <span class="route-dot"></span>
+          <span class="route-name">A-CHAIM</span>
+          <span class="route-cond">high-latitude assimilation &middot; |lat| &ge; 60&deg;</span>
+        </div>
+        <div class="route-row" data-model="IRTAM">
+          <span class="route-dot"></span>
+          <span class="route-name">PyIRTAM</span>
+          <span class="route-cond">nominal &middot; real-time GIRO assimilation</span>
+        </div>
+        <div class="route-row" data-model="IRI">
+          <span class="route-dot"></span>
+          <span class="route-name">IRI-2016</span>
+          <span class="route-cond">calm fallback &middot; climatological baseline</span>
+        </div>
+        <div class="route-note" id="route-note">predicted route at receiver; re-evaluated at path midpoint in pass 2</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
+        <button type="submit" class="btn-compute" id="btn">&#x25B7;&nbsp; Compute geolocation</button>
+        <div class="pipeline" id="pipeline" aria-hidden="true">
+          <div class="stage">PASS 1 &middot; ionospheric profile at receiver</div>
+          <div class="stage">rough transmitter estimate</div>
+          <div class="stage">PASS 2 &middot; profile at path midpoint</div>
+          <div class="stage">final SSL solution</div>
+          <div class="stage">GP residual correction</div>
+        </div>
+        <div id="alert-box" class="alert" role="alert"></div>
+      </div>
+    </form>
+  </div>
+
+  <!-- ━━━ CENTER: MAP ━━━ -->
+  <div class="panel-map">
+    <div id="map"></div>
+    <div class="map-readout" id="map-readout">&mdash;</div>
+    <div class="map-legend" id="map-legend">
+      <div class="lg"><i class="i-rx"></i>receiver station</div>
+      <div class="lg"><i class="i-tx"></i>SSL physics estimate</div>
+      <div class="lg"><i class="i-gp"></i>GP-corrected estimate</div>
+      <div class="lg"><i class="i-cr"></i>1&sigma; confidence radius</div>
     </div>
-  </header>
+    <div class="map-veil" id="map-veil"><span class="veil-txt">Solving</span></div>
+  </div>
 
-  <!-- ━━━━━━━━━━━━━━━ WORKSPACE ━━━━━━━━━━━━━━━ -->
-  <div class="workspace">
+  <!-- ━━━ RIGHT: SOLUTION ━━━ -->
+  <div class="panel-r" aria-live="polite">
 
-    <!-- ━━━ LEFT PANEL ━━━ -->
-    <div class="left-panel">
-      <div class="left-scroll">
+    <div class="r-empty" id="r-empty">
+      <div class="ttl">No solution</div>
+      <p>This console drives the <strong>single-station location (SSL)</strong> pipeline.
+      An HF signal launched beyond the horizon reaches the receiver by refracting off
+      the ionosphere, a charged shell of the upper atmosphere a few hundred kilometres up.</p>
+      <p>From the measured <strong>arrival bearing</strong>, <strong>elevation angle</strong> and a
+      condition-aware <strong>ionospheric height model</strong>, the pipeline back-projects the
+      hop geometry in two passes: receiver, rough transmitter, path midpoint, final transmitter.</p>
+      <p>Set the intercept parameters and compute. The hop cross-section, map solution
+      and uncertainty bounds will render here from the live response.</p>
+    </div>
 
-        <div class="intro">
-          This system estimates the location of a <strong>high-frequency (HF) radio transmitter</strong>
-          from a single receiving station using the <strong>Single-Station Location (SSL)</strong> method.
-          HF signals &ldquo;skip&rdquo; off the ionosphere — a charged layer of the upper atmosphere.
-          By measuring the signal&rsquo;s arrival bearing and elevation and modelling the ionospheric
-          height, the pipeline back-calculates the transmitter&rsquo;s ground position.
-          Enter your station coordinates, the measured signal angles, and current space-weather
-          conditions, then click <em>Compute</em>.
+    <div id="solution">
+
+      <div class="r-sec">
+        <div class="r-sec-lbl">Hop Geometry</div>
+        <div class="hop-wrap">
+          <svg id="hop-svg" viewBox="0 0 560 252" preserveAspectRatio="xMidYMid meet" role="img"
+               aria-label="Cross-section of the single-hop skywave path"></svg>
+          <div class="hop-cap" id="hop-cap"></div>
         </div>
+      </div>
 
-        <form id="loc-form" autocomplete="off">
-
-          <!-- Section: Station & Signal -->
-          <div class="sec-lbl">Station &amp; Signal</div>
-          <div class="fields">
-            <div class="frow">
-              <div class="field">
-                <label>Receiver Latitude
-                  <span class="tip" title="Latitude of your receiving station in decimal degrees. South is negative (e.g. −33 for Cape Town).">ⓘ</span>
-                </label>
-                <input type="number" id="f-rlat" value="23.0" step="0.01" min="-90" max="90" required>
-              </div>
-              <div class="field">
-                <label>Receiver Longitude
-                  <span class="tip" title="Longitude of your receiving station in decimal degrees. West is negative (e.g. −74 for New York).">ⓘ</span>
-                </label>
-                <input type="number" id="f-rlon" value="72.5" step="0.01" min="-180" max="180" required>
-              </div>
-            </div>
-            <div class="frow">
-              <div class="field">
-                <label>Bearing to Signal (&deg;)
-                  <span class="tip" title="Compass direction the signal arrived from: 0 = North, 90 = East, 180 = South, 270 = West.">ⓘ</span>
-                </label>
-                <input type="number" id="f-az" value="45.0" step="0.1" min="0" max="360" required>
-              </div>
-              <div class="field">
-                <label>Elevation Angle (&deg;)
-                  <span class="tip" title="Angle above the horizon at which the signal arrived. Higher elevation = shorter skip distance = closer transmitter.">ⓘ</span>
-                </label>
-                <input type="number" id="f-el" value="30.0" step="0.1" min="0.5" max="89" required>
-              </div>
-            </div>
-            <div class="frow one">
-              <div class="field">
-                <label>Signal Frequency (MHz)
-                  <span class="tip" title="The HF frequency in megahertz — typically 2–30 MHz for ionospheric skywave propagation.">ⓘ</span>
-                </label>
-                <input type="number" id="f-freq" value="10.0" step="0.1" min="1" max="50" required>
-              </div>
-            </div>
-          </div>
-
-          <!-- Section: Environmental -->
-          <div class="sec-lbl" style="margin-top:14px;">Environmental Parameters</div>
-          <div class="fields">
-            <div class="frow one">
-              <div class="field">
-                <label>Date &amp; Time (UTC)
-                  <span class="tip" title="Date and time the signal was received, in UTC. Used to query the ionospheric model for that specific moment.">ⓘ</span>
-                </label>
-                <input type="datetime-local" id="f-ts" value="2012-06-15T12:00" required>
-              </div>
-            </div>
-            <div class="frow">
-              <div class="field">
-                <label>Kp Index
-                  <span class="tip" title="Global geomagnetic activity index: 0 = completely calm, 9 = extreme storm. Controls which ionospheric model the pipeline selects.">ⓘ</span>
-                </label>
-                <input type="number" id="f-kp" value="1.0" step="0.1" min="0" max="9" required>
-              </div>
-              <div class="field">
-                <label>Dst Index (nT)
-                  <span class="tip" title="Geomagnetic storm strength in nanotesla. Values near 0 are calm; large negative values (e.g. −150) indicate a severe magnetic storm.">ⓘ</span>
-                </label>
-                <input type="number" id="f-dst" value="-10.0" step="1" min="-600" max="50" required>
-              </div>
-            </div>
-            <div class="frow">
-              <div class="field">
-                <label>F10.7 Solar Flux (SFU)
-                  <span class="tip" title="Solar flux index at 10.7 cm wavelength. Typical range: 65 (solar minimum) to 250 (solar maximum). 2012 solar max ≈ 130 SFU.">ⓘ</span>
-                </label>
-                <input type="number" id="f-f107" value="130.0" step="1" min="50" max="300" required>
-              </div>
-              <div class="field" style="align-self:end;">
-                <div class="chk-row">
-                  <input type="checkbox" id="f-irtam" checked>
-                  <label for="f-irtam">Enable IRTAM</label>
-                  <span class="tip" title="When checked, uses the real-time assimilated IRTAM model for calm geomagnetic conditions instead of the baseline IRI model.">ⓘ</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Submit -->
-          <div class="submit-area" style="margin-top:14px;">
-            <button type="submit" class="btn-compute" id="btn">&#x25B7;&nbsp; COMPUTE GEOLOCATION</button>
-            <div id="alert-box" class="alert"></div>
-          </div>
-
-        </form>
-      </div><!-- /left-scroll -->
-    </div><!-- /left-panel -->
-
-    <!-- ━━━ RIGHT PANEL ━━━ -->
-    <div class="right-panel">
-      <div id="map"></div>
-
-      <div class="results-panel" id="res-panel">
-        <div class="res-empty" id="res-empty">
-          Submit the form to compute a geolocation estimate &mdash; results will appear here.
+      <div class="r-sec">
+        <div class="r-sec-lbl">SSL Physics Estimate</div>
+        <div class="coord-pair">
+          <div class="coord"><span class="k">Transmitter lat</span><span class="v" id="r-lat">&mdash;</span></div>
+          <div class="coord"><span class="k">Transmitter lon</span><span class="v" id="r-lon">&mdash;</span></div>
         </div>
-        <div id="res-cards" class="res-cards" style="display:none;">
+        <div class="sgrid">
+          <div class="stat"><span class="k">Ground range</span><span class="v" id="r-dist">&mdash;</span></div>
+          <div class="stat"><span class="k">Virtual height</span><span class="v" id="r-vh">&mdash;</span></div>
+          <div class="stat"><span class="k">Hop midpoint</span><span class="v" id="r-mid">&mdash;</span></div>
+        </div>
+        <div class="method-note" id="r-method"></div>
+      </div>
 
-          <!-- Primary estimate -->
-          <div class="card">
-            <div class="card-hdr primary">&#9632;&nbsp; Primary Estimate &mdash; SSL Physics</div>
-            <div class="card-body">
-              <div class="sgrid">
-                <div class="stat">
-                  <span class="stat-lbl">Estimated Latitude</span>
-                  <span class="stat-val c" id="r-lat">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">Estimated Longitude</span>
-                  <span class="stat-val c" id="r-lon">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">Ground Distance</span>
-                  <span class="stat-val" id="r-dist">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">Virtual Height</span>
-                  <span class="stat-val" id="r-vh">—</span>
-                </div>
-              </div>
-              <div class="method-note" id="r-method">—</div>
-            </div>
-          </div>
+      <div class="r-sec">
+        <div class="r-sec-lbl">Ionospheric Model</div>
+        <div id="muf-warn"></div>
+        <div class="model-line">
+          <span class="name" id="r-model">&mdash;</span>
+          <span id="r-fallback"></span>
+        </div>
+        <div class="model-reason" id="r-reason"></div>
+      </div>
 
-          <!-- Ionosphere info -->
-          <div class="card">
-            <div class="card-hdr iono">&#9670;&nbsp; Ionospheric Model</div>
-            <div class="card-body">
-              <div class="sgrid two">
-                <div class="stat">
-                  <span class="stat-lbl">Model Used</span>
-                  <span class="stat-val sm" id="r-model">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">Selection Reason</span>
-                  <span class="stat-val sm" id="r-reason">—</span>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div class="r-sec" style="border-bottom:none;">
+        <div class="r-sec-lbl">GP Residual Correction
+          <span class="tag">EXPERIMENTAL &middot; NOT VALIDATED</span>
+        </div>
+        <div id="gp-body"></div>
+      </div>
 
-          <!-- GP correction -->
-          <div class="card">
-            <div class="card-hdr gp">
-              &#9651;&nbsp; GP Correction
-              <span class="exp-tag">EXPERIMENTAL &mdash; NOT VALIDATED</span>
-            </div>
-            <div class="card-body">
-              <div class="gp-warning" id="gp-note">—</div>
-              <div class="sgrid">
-                <div class="stat">
-                  <span class="stat-lbl">Corrected Lat</span>
-                  <span class="stat-val a" id="r-gp-lat">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">Corrected Lon</span>
-                  <span class="stat-val a" id="r-gp-lon">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">&plusmn; Lat Uncertainty</span>
-                  <span class="stat-val sm" id="r-gp-ulat">—</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-lbl">&plusmn; Lon Uncertainty</span>
-                  <span class="stat-val sm" id="r-gp-ulon">—</span>
-                </div>
-              </div>
-            </div>
-          </div>
+    </div>
+  </div>
 
-        </div><!-- /res-cards -->
-      </div><!-- /results-panel -->
-    </div><!-- /right-panel -->
+</div><!-- /workspace -->
 
-  </div><!-- /workspace -->
+<!-- ════════════════════════════ FOOTER ════════════════════════════ -->
+<footer>
+  <span class="f-item" id="f-gp">GP MODELS: &mdash;</span>
+  <span class="f-item" id="f-solve"></span>
+  <span class="f-spacer"></span>
+  <span class="f-item">VALIDATED MAE &middot; IRTAM <b>103.3&rarr;77.2 km</b> &middot; STORM <b>610.8&rarr;112.0 km</b> (AH223, 2012)</span>
+</footer>
 
-  <script src="/static/leaflet.js"></script>
-  <script>
-    var map = L.map('map').setView([23, 80], 4);
+<script src="/static/leaflet.js"></script>
+<script>
+'use strict';
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19
-    }).addTo(map);
+/* ═══════════════════ utilities ═══════════════════ */
+var $ = function (id) { return document.getElementById(id); };
+var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    function makeIcon(color, size) {
-      return L.divIcon({
-        className: '',
-        html: '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;'
-            + 'background:' + color + ';border:2px solid rgba(255,255,255,0.55);'
-            + 'box-shadow:0 0 10px ' + color + ',0 0 24px ' + color + '44"></div>',
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-        popupAnchor: [0, -(size / 2 + 6)]
-      });
+function fmtLat(v)  { return Math.abs(v).toFixed(4) + '° ' + (v >= 0 ? 'N' : 'S'); }
+function fmtLon(v)  { return Math.abs(v).toFixed(4) + '° ' + (v >= 0 ? 'E' : 'W'); }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* great-circle interpolation (spherical linear) */
+function gcPoints(lat1, lon1, lat2, lon2, n) {
+  var R = Math.PI / 180, D = 180 / Math.PI;
+  var p1 = lat1 * R, l1 = lon1 * R, p2 = lat2 * R, l2 = lon2 * R;
+  var d = 2 * Math.asin(Math.sqrt(
+    Math.pow(Math.sin((p2 - p1) / 2), 2) +
+    Math.cos(p1) * Math.cos(p2) * Math.pow(Math.sin((l2 - l1) / 2), 2)));
+  if (d < 1e-9) return [[lat1, lon1], [lat2, lon2]];
+  var pts = [];
+  for (var i = 0; i <= n; i++) {
+    var f = i / n;
+    var A = Math.sin((1 - f) * d) / Math.sin(d);
+    var B = Math.sin(f * d) / Math.sin(d);
+    var x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+    var y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+    var z = A * Math.sin(p1) + B * Math.sin(p2);
+    pts.push([Math.atan2(z, Math.sqrt(x * x + y * y)) * D, Math.atan2(y, x) * D]);
+  }
+  return pts;
+}
+
+/* ═══════════════════ header: clock + health ═══════════════════ */
+function tickClock() {
+  var d = new Date();
+  var p = function (n) { return String(n).padStart(2, '0'); };
+  $('clock').textContent =
+    p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+fetch('/health').then(function (r) { return r.json(); }).then(function (h) {
+  var el = $('health');
+  if (h.status === 'ok') {
+    el.classList.add('ok');
+    $('health-txt').textContent = h.gp_models_loaded ? 'OPERATIONAL' : 'OPERATIONAL · GP OFFLINE';
+    var rows = h.gp_training_rows || {};
+    var parts = [];
+    if (h.gp_models && h.gp_models.irtam) parts.push('IRTAM ✓' + (rows.irtam ? ' (' + rows.irtam + ' rows)' : ''));
+    if (h.gp_models && h.gp_models.sami3) parts.push('STORM ✓' + (rows.sami3 ? ' (' + rows.sami3 + ' rows)' : ''));
+    $('f-gp').textContent = 'GP MODELS: ' + (parts.length ? parts.join('  ·  ') : 'not loaded');
+  } else {
+    el.classList.add('bad');
+    $('health-txt').textContent = 'DEGRADED';
+  }
+}).catch(function () {
+  $('health').classList.add('bad');
+  $('health-txt').textContent = 'API UNREACHABLE';
+});
+
+/* ═══════════════════ map ═══════════════════ */
+var map = L.map('map', { zoomControl: true, attributionControl: true })
+  .setView([23, 80], 4);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+function divIcon(cls, w, h, ax, ay) {
+  return L.divIcon({
+    className: 'mk',
+    html: '<div class="' + cls + '"></div>',
+    iconSize: [w, h],
+    iconAnchor: [ax, ay]
+  });
+}
+var icRx   = function () { return divIcon('mk-rx', 14, 14, 7, 7); };
+var icTx   = function () { return divIcon('mk-tx', 14, 14, 7, 7); };
+var icGp   = function () { return divIcon('mk-gp', 16, 13, 8, 8); };
+var icApex = function () { return divIcon('mk-apex', 8, 8, 4, 4); };
+
+var layers = [];   /* everything we draw per solution */
+var rxPreview = null;
+
+function clearLayers() {
+  layers.forEach(function (l) { map.removeLayer(l); });
+  layers = [];
+}
+
+function tooltip(marker, html) {
+  marker.bindTooltip(html, { className: 'tip-dark', direction: 'top', offset: [0, -10] });
+  return marker;
+}
+
+/* live receiver preview while editing */
+function updateRxPreview() {
+  var lat = parseFloat($('f-rlat').value);
+  var lon = parseFloat($('f-rlon').value);
+  if (isNaN(lat) || isNaN(lon)) return;
+  if (rxPreview) { rxPreview.setLatLng([lat, lon]); }
+  else {
+    rxPreview = tooltip(
+      L.marker([lat, lon], { icon: icRx(), keyboard: false }).addTo(map),
+      'RECEIVER STATION<br>' + fmtLat(lat) + '&ensp;' + fmtLon(lon));
+  }
+}
+updateRxPreview();
+
+/* cursor coordinate readout */
+map.on('mousemove', function (e) {
+  $('map-readout').textContent = fmtLat(e.latlng.lat) + '   ' + fmtLon(e.latlng.lng);
+});
+map.on('mouseout', function () { $('map-readout').innerHTML = '&mdash;'; });
+
+/* ═══════════════════ model routing (mirrors models/hybrid_selector.py) ═══════════════════ */
+function predictRoute(kp, dst, lat, irtam) {
+  if (kp >= 5.0 || dst <= -100.0) return 'PYRAYHF';
+  if (Math.abs(lat) >= 60.0)      return 'A-CHAIM';
+  if (irtam)                      return 'IRTAM';
+  return 'IRI';
+}
+
+function refreshRouting() {
+  var kp  = parseFloat($('f-kp').value)   || 0;
+  var dst = parseFloat($('f-dst').value)  || 0;
+  var lat = parseFloat($('f-rlat').value) || 0;
+  var key = predictRoute(kp, dst, lat, $('f-irtam').checked);
+  document.querySelectorAll('.route-row').forEach(function (row) {
+    row.classList.remove('armed', 'actual');
+    if (row.dataset.model === key) row.classList.add('armed');
+  });
+  $('route-note').textContent = 'predicted route at receiver; re-evaluated at path midpoint in pass 2';
+}
+
+function markActualRoute(modelUsed, selectedModel) {
+  var keyFor = function (name) {
+    var n = String(name).toUpperCase();
+    if (n.indexOf('RAYHF') >= 0 || n.indexOf('SAMI') >= 0) return 'PYRAYHF';
+    if (n.indexOf('CHAIM') >= 0) return 'A-CHAIM';
+    if (n.indexOf('IRTAM') >= 0) return 'IRTAM';
+    return 'IRI';
+  };
+  var used = keyFor(modelUsed);
+  document.querySelectorAll('.route-row').forEach(function (row) {
+    row.classList.remove('armed', 'actual');
+    if (row.dataset.model === used) row.classList.add('actual');
+  });
+  if (selectedModel && keyFor(selectedModel) !== used) {
+    $('route-note').innerHTML =
+      'selected <span class="fb">' + esc(selectedModel) + '</span> → fell back to ' + esc(modelUsed);
+  } else {
+    $('route-note').textContent = 'confirmed route for last solution: ' + modelUsed;
+  }
+}
+
+['f-kp', 'f-dst', 'f-rlat', 'f-rlon'].forEach(function (id) {
+  $(id).addEventListener('input', function () {
+    refreshRouting();
+    if (id === 'f-rlat' || id === 'f-rlon') updateRxPreview();
+  });
+});
+$('f-irtam').addEventListener('change', refreshRouting);
+
+/* Kp slider <-> number sync */
+$('f-kp-rail').addEventListener('input', function () {
+  $('f-kp').value = this.value;
+  refreshRouting();
+});
+$('f-kp').addEventListener('input', function () {
+  var v = parseFloat(this.value);
+  if (!isNaN(v)) $('f-kp-rail').value = Math.min(9, Math.max(0, v));
+});
+refreshRouting();
+
+/* ═══════════════════ scenario presets ═══════════════════ */
+var PRESETS = {
+  nominal: { rlat: 23.0, rlon: 72.5, az: 45.0,  el: 30.0, freq: 10.0, ts: '2012-06-15T12:00', kp: 1.0, dst: -10,  f107: 130, irtam: true  },
+  storm:   { rlat: 23.0, rlon: 72.5, az: 45.0,  el: 30.0, freq: 10.0, ts: '2012-07-15T12:00', kp: 7.0, dst: -150, f107: 130, irtam: true  },
+  polar:   { rlat: 65.0, rlon: 25.0, az: 120.0, el: 25.0, freq: 8.0,  ts: '2012-06-15T12:00', kp: 2.0, dst: -20,  f107: 130, irtam: true  },
+  calm:    { rlat: 23.0, rlon: 72.5, az: 45.0,  el: 30.0, freq: 10.0, ts: '2012-06-15T12:00', kp: 1.0, dst: -5,   f107: 130, irtam: false }
+};
+document.querySelectorAll('.preset').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var p = PRESETS[b.dataset.preset];
+    $('f-rlat').value = p.rlat;  $('f-rlon').value = p.rlon;
+    $('f-az').value   = p.az;    $('f-el').value   = p.el;
+    $('f-freq').value = p.freq;  $('f-ts').value   = p.ts;
+    $('f-kp').value   = p.kp;    $('f-kp-rail').value = p.kp;
+    $('f-dst').value  = p.dst;   $('f-f107').value = p.f107;
+    $('f-irtam').checked = p.irtam;
+    refreshRouting();
+    updateRxPreview();
+    map.setView([p.rlat, p.rlon], 5);
+  });
+});
+
+/* ═══════════════════ pipeline stage animator ═══════════════════ */
+var stageTimer = null;
+function startStages() {
+  var rows = document.querySelectorAll('#pipeline .stage');
+  $('pipeline').classList.add('on');
+  var i = 0;
+  rows.forEach(function (r) { r.classList.remove('live'); });
+  rows[0].classList.add('live');
+  if (REDUCED) return;
+  stageTimer = setInterval(function () {
+    rows[i % rows.length].classList.remove('live');
+    i++;
+    rows[i % rows.length].classList.add('live');
+  }, 800);
+}
+function stopStages() {
+  if (stageTimer) { clearInterval(stageTimer); stageTimer = null; }
+  $('pipeline').classList.remove('on');
+  document.querySelectorAll('#pipeline .stage').forEach(function (r) { r.classList.remove('live'); });
+}
+
+/* ═══════════════════ hop geometry cross-section (SVG) ═══════════════════ */
+var SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, text) {
+  var el = document.createElementNS(SVG_NS, tag);
+  for (var k in attrs) el.setAttribute(k, attrs[k]);
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function renderHop(D, h, elevDeg, midLat, midLon) {
+  var svg = $('hop-svg');
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  if (!(D > 0) || !(h > 0)) {
+    $('hop-cap').textContent = 'hop geometry unavailable for this solution';
+    return;
+  }
+
+  var W = 560, H = 252, padX = 46, padTop = 30, padBot = 40;
+  var Re = 6371;
+  var theta = D / (2 * Re);                       /* half angular width, rad */
+  var halfChord = Re * Math.sin(theta);
+  var bulge = Re * (1 - Math.cos(theta));         /* earth-curvature rise at midpoint */
+  var apexH = h + bulge;                          /* apex height above chord */
+  var sx = (W - 2 * padX) / (2 * halfChord);
+  var sy = (H - padTop - padBot) / apexH;
+  var vex = sy / sx;
+  var X = function (x) { return W / 2 + x * sx; };
+  var Y = function (y) { return H - padBot - y * sy; };
+
+  /* ground surface (true curvature, exaggerated vertically) */
+  var N = 72, dGround = '', i, phi, gx, gy;
+  for (i = 0; i <= N; i++) {
+    phi = -theta + 2 * theta * i / N;
+    gx = Re * Math.sin(phi);
+    gy = Re * Math.cos(phi) - Re * Math.cos(theta);
+    dGround += (i ? 'L' : 'M') + X(gx).toFixed(1) + ' ' + Y(gy).toFixed(1);
+  }
+  /* fill below ground */
+  svg.appendChild(svgEl('path', {
+    d: dGround + 'L' + (W - padX) + ' ' + H + 'L' + padX + ' ' + H + 'Z',
+    fill: 'rgba(28,41,64,0.35)', stroke: 'none'
+  }));
+  svg.appendChild(svgEl('path', { d: dGround, fill: 'none', stroke: '#2b3d5c', 'stroke-width': 1.5 }));
+
+  /* ionospheric band (schematic thickness) and exact virtual-height line */
+  function arcAt(radius, span) {
+    var d2 = '';
+    for (var j = 0; j <= N; j++) {
+      var p2 = -theta * span + 2 * theta * span * j / N;
+      var x2 = radius * Math.sin(p2);
+      var y2 = radius * Math.cos(p2) - Re * Math.cos(theta);
+      d2 += (j ? 'L' : 'M') + X(x2).toFixed(1) + ' ' + Y(y2).toFixed(1);
     }
+    return d2;
+  }
+  var bandLo = arcAt(Re + Math.max(h - 45, h * 0.7), 1.06);
+  var bandHiPts = [];
+  for (i = N; i >= 0; i--) {
+    phi = -theta * 1.06 + 2 * theta * 1.06 * i / N;
+    gx = (Re + h + 55) * Math.sin(phi);
+    gy = (Re + h + 55) * Math.cos(phi) - Re * Math.cos(theta);
+    bandHiPts.push(X(gx).toFixed(1) + ' ' + Y(gy).toFixed(1));
+  }
+  svg.appendChild(svgEl('path', {
+    d: bandLo + 'L' + bandHiPts.join('L') + 'Z',
+    fill: 'rgba(0,212,245,0.05)', stroke: 'none'
+  }));
+  svg.appendChild(svgEl('path', {
+    d: arcAt(Re + h, 1.06),
+    fill: 'none', stroke: 'rgba(0,212,245,0.45)', 'stroke-width': 1, 'stroke-dasharray': '5 4'
+  }));
+  svg.appendChild(svgEl('text', {
+    x: padX + 4, y: Y(h) + 13, fill: '#0a7d92',
+    'font-size': 9, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, 'reflecting layer (schematic band)'));
 
-    var rxMarker = null, txMarker = null, bearingPath = null;
+  /* virtual mirror-model ray: RX -> apex -> TX */
+  var rx = [X(-halfChord), Y(0)], apex = [X(0), Y(apexH)], tx = [X(halfChord), Y(0)];
+  var ray = svgEl('path', {
+    d: 'M' + rx[0] + ' ' + rx[1] + 'L' + apex[0] + ' ' + apex[1] + 'L' + tx[0] + ' ' + tx[1],
+    fill: 'none', stroke: '#00d4f5', 'stroke-width': 1.8,
+    'stroke-linejoin': 'round', class: 'hop-ray'
+  });
+  svg.appendChild(ray);
 
-    function clearMapLayers() {
-      if (rxMarker)    { map.removeLayer(rxMarker);    rxMarker    = null; }
-      if (txMarker)    { map.removeLayer(txMarker);    txMarker    = null; }
-      if (bearingPath) { map.removeLayer(bearingPath); bearingPath = null; }
-    }
+  /* draw-on animation: final state is the default, motion is an overlay */
+  if (!REDUCED && ray.animate) {
+    var len = ray.getTotalLength();
+    ray.style.strokeDasharray = len;
+    ray.style.strokeDashoffset = 0;
+    ray.animate(
+      [{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+      { duration: 900, easing: 'cubic-bezier(0.16,1,0.3,1)' }
+    );
+  }
 
-    function plotOnMap(rxLat, rxLon, txLat, txLon) {
-      clearMapLayers();
+  /* virtual-height drop line at midpoint */
+  svg.appendChild(svgEl('line', {
+    x1: apex[0], y1: apex[1], x2: X(0), y2: Y(bulge),
+    stroke: '#43586f', 'stroke-width': 1, 'stroke-dasharray': '3 4'
+  }));
+  svg.appendChild(svgEl('text', {
+    x: apex[0] + 6, y: (apex[1] + Y(bulge)) / 2, fill: '#7d92a8',
+    'font-size': 10, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, "h' = " + h.toFixed(1) + ' km'));
 
-      rxMarker = L.marker([rxLat, rxLon], { icon: makeIcon('#00d4f5', 14) })
-        .addTo(map)
-        .bindPopup(
-          '<b style="font-family:monospace;color:#00d4f5">&#9632; Receiver Station</b><br>'
-          + rxLat.toFixed(4) + '&deg;&nbsp;N,&nbsp;' + rxLon.toFixed(4) + '&deg;&nbsp;E'
-        );
+  /* endpoint markers + labels */
+  svg.appendChild(svgEl('circle', { cx: rx[0], cy: rx[1], r: 4, fill: '#00d4f5' }));
+  svg.appendChild(svgEl('rect', {
+    x: tx[0] - 4, y: tx[1] - 4, width: 8, height: 8, fill: '#00d4f5',
+    transform: 'rotate(45 ' + tx[0] + ' ' + tx[1] + ')'
+  }));
+  svg.appendChild(svgEl('circle', { cx: apex[0], cy: apex[1], r: 3.2, fill: '#d2dce8' }));
+  svg.appendChild(svgEl('text', {
+    x: rx[0], y: rx[1] + 16, fill: '#7d92a8', 'text-anchor': 'middle',
+    'font-size': 10, 'font-weight': 700, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, 'RX'));
+  svg.appendChild(svgEl('text', {
+    x: tx[0], y: tx[1] + 16, fill: '#7d92a8', 'text-anchor': 'middle',
+    'font-size': 10, 'font-weight': 700, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, 'TX est'));
+  svg.appendChild(svgEl('text', {
+    x: apex[0], y: apex[1] - 9, fill: '#d2dce8', 'text-anchor': 'middle',
+    'font-size': 9, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, 'apex · pass-2 sample point'));
 
-      txMarker = L.marker([txLat, txLon], { icon: makeIcon('#f0a040', 14) })
-        .addTo(map)
-        .bindPopup(
-          '<b style="font-family:monospace;color:#f0a040">&#9651; Estimated Emitter</b><br>'
-          + txLat.toFixed(4) + '&deg;&nbsp;N,&nbsp;' + txLon.toFixed(4) + '&deg;&nbsp;E'
-        );
+  /* elevation annotation at RX */
+  svg.appendChild(svgEl('text', {
+    x: rx[0] + 9, y: rx[1] - 9, fill: '#0a7d92',
+    'font-size': 9.5, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, 'el ' + elevDeg.toFixed(1) + '°'));
 
-      bearingPath = L.polyline([[rxLat, rxLon], [txLat, txLon]], {
-        color: '#00d4f5', weight: 1.5, opacity: 0.65, dashArray: '7 5'
+  /* ground-range label */
+  svg.appendChild(svgEl('text', {
+    x: W / 2, y: H - 8, fill: '#43586f', 'text-anchor': 'middle',
+    'font-size': 10, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+  }, 'ground range ' + D.toFixed(1) + ' km'));
+
+  $('hop-cap').textContent =
+    'single-hop mirror model · true earth curvature · vertical scale ×' + vex.toFixed(1) +
+    ' · midpoint ' + fmtLat(midLat) + ' ' + fmtLon(midLon);
+}
+
+/* ═══════════════════ solution rendering ═══════════════════ */
+function plotSolution(rxLat, rxLon, data) {
+  clearLayers();
+  if (rxPreview) { map.removeLayer(rxPreview); rxPreview = null; }
+
+  var pe = data.primary_estimate;
+  var gp = data.gp_correction;
+  var arc = gcPoints(rxLat, rxLon, pe.transmitter_lat, pe.transmitter_lon, 64);
+  var mid = arc[32];
+
+  /* propagation arc: ground projection of the skywave hop */
+  layers.push(L.polyline(arc, {
+    color: '#00d4f5', weight: 1.6, opacity: 0.75, className: 'prop-arc'
+  }).addTo(map));
+
+  /* receiver */
+  layers.push(tooltip(
+    L.marker([rxLat, rxLon], { icon: icRx() }).addTo(map),
+    'RECEIVER STATION<br>' + fmtLat(rxLat) + '&ensp;' + fmtLon(rxLon)));
+
+  /* hop apex ground projection */
+  layers.push(tooltip(
+    L.marker(mid, { icon: icApex() }).addTo(map),
+    'HOP APEX (ground track)<br>reflection at h′ = ' + pe.virtual_height_km.toFixed(1) +
+    ' km<br>' + fmtLat(mid[0]) + '&ensp;' + fmtLon(mid[1])));
+
+  /* physics estimate */
+  layers.push(tooltip(
+    L.marker([pe.transmitter_lat, pe.transmitter_lon], { icon: icTx() }).addTo(map),
+    'SSL PHYSICS ESTIMATE<br>' + fmtLat(pe.transmitter_lat) + '&ensp;' + fmtLon(pe.transmitter_lon) +
+    '<br>range ' + pe.ground_distance_km.toFixed(1) + ' km'));
+
+  var bounds = [[rxLat, rxLon], [pe.transmitter_lat, pe.transmitter_lon]];
+
+  /* GP-corrected estimate + confidence radius */
+  if (gp && gp.status === 'applied' && gp.corrected_lat !== null && gp.corrected_lon !== null) {
+    layers.push(L.polyline(
+      [[pe.transmitter_lat, pe.transmitter_lon], [gp.corrected_lat, gp.corrected_lon]],
+      { color: '#f5b04a', weight: 1.2, opacity: 0.8, dashArray: '4 4' }).addTo(map));
+
+    if (gp.correction_std_km) {
+      var circ = L.circle([gp.corrected_lat, gp.corrected_lon], {
+        radius: gp.correction_std_km * 1000,
+        color: '#f5b04a', weight: 1, opacity: 0.7,
+        fillColor: '#f5b04a', fillOpacity: 0.08, dashArray: '5 5'
       }).addTo(map);
-
-      map.fitBounds([[rxLat, rxLon], [txLat, txLon]], { padding: [50, 50] });
-      txMarker.openPopup();
+      layers.push(circ);
+      bounds.push(circ.getBounds().getNorthEast());
+      bounds.push(circ.getBounds().getSouthWest());
     }
 
-    var form     = document.getElementById('loc-form');
-    var btn      = document.getElementById('btn');
-    var alertBox = document.getElementById('alert-box');
+    layers.push(tooltip(
+      L.marker([gp.corrected_lat, gp.corrected_lon], { icon: icGp() }).addTo(map),
+      'GP-CORRECTED ESTIMATE' + (gp.ood_warning ? ' · OOD' : '') +
+      '<br>' + fmtLat(gp.corrected_lat) + '&ensp;' + fmtLon(gp.corrected_lon) +
+      (gp.correction_std_km ? '<br>1σ ≈ ' + gp.correction_std_km.toFixed(1) + ' km' : '')));
+    bounds.push([gp.corrected_lat, gp.corrected_lon]);
+  }
 
-    function setAlert(cls, txt) {
-      alertBox.className  = 'alert ' + cls;
-      alertBox.textContent = txt;
+  $('map-legend').classList.add('on');
+  map.fitBounds(bounds, { padding: [56, 56] });
+  return mid;
+}
+
+function renderGP(gp, muf) {
+  var el = $('gp-body');
+  if (!gp) { el.innerHTML = ''; return; }
+  var html = '';
+
+  if (gp.ood_warning) {
+    html += '<div class="warn amber"><span class="ic">!</span><span>Outside GP training distribution ' +
+            '(AH223 Ahmedabad, Jun/Jul/Dec 2012, transmitter lat 15&ndash;35&deg;N). ' +
+            'Correction reliability is reduced.</span></div>';
+  }
+
+  if (gp.status === 'applied') {
+    html +=
+      '<div class="coord-pair">' +
+        '<div class="coord"><span class="k">Corrected lat</span><span class="v am">' + fmtLat(gp.corrected_lat) + '</span></div>' +
+        '<div class="coord"><span class="k">Corrected lon</span><span class="v am">' + fmtLon(gp.corrected_lon) + '</span></div>' +
+      '</div>' +
+      '<div class="sgrid">' +
+        '<div class="stat"><span class="k" style="text-transform:none">&sigma; LAT</span><span class="v">' +
+          (gp.uncertainty_lat_deg !== null ? '±' + gp.uncertainty_lat_deg.toFixed(4) + '<span class="u">°</span>' : 'n/a') + '</span></div>' +
+        '<div class="stat"><span class="k" style="text-transform:none">&sigma; LON</span><span class="v">' +
+          (gp.uncertainty_lon_deg !== null ? '±' + gp.uncertainty_lon_deg.toFixed(4) + '<span class="u">°</span>' : 'n/a') + '</span></div>' +
+        '<div class="stat"><span class="k" style="text-transform:none">1&sigma; RADIUS</span><span class="v">' +
+          (gp.correction_std_km !== null && gp.correction_std_km !== undefined
+            ? gp.correction_std_km.toFixed(1) + '<span class="u">km</span>' : 'n/a') + '</span></div>' +
+      '</div>';
+  } else if (gp.status === 'not_applied') {
+    html += '<div class="gp-unavail">No per-population GP exists for this model branch. ' +
+            'Corrections are trained only for the PyIRTAM and PyRayHF storm populations; ' +
+            'the physics estimate above stands alone.</div>';
+  } else {
+    html += '<div class="warn red"><span class="ic">&times;</span><span>' + esc(gp.note) + '</span></div>';
+  }
+
+  if (gp.status === 'applied' && gp.note) {
+    html += '<div class="gp-note">' + esc(gp.note) + '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function renderSolution(data, rxLat, rxLon, elevDeg, latencyMs) {
+  var pe  = data.primary_estimate;
+  var ion = data.ionosphere;
+
+  var mid = plotSolution(rxLat, rxLon, data);
+
+  $('r-lat').textContent  = fmtLat(pe.transmitter_lat);
+  $('r-lon').textContent  = fmtLon(pe.transmitter_lon);
+  $('r-dist').innerHTML   = pe.ground_distance_km.toFixed(1) + '<span class="u">km</span>';
+  $('r-vh').innerHTML     = pe.virtual_height_km.toFixed(1) + '<span class="u">km</span>';
+  $('r-mid').textContent  = mid[0].toFixed(2) + '°, ' + mid[1].toFixed(2) + '°';
+  $('r-method').textContent = pe.method;
+
+  $('r-model').textContent  = ion.model_used;
+  $('r-reason').textContent = ion.reason;
+  $('r-fallback').innerHTML =
+    (ion.selected_model && ion.selected_model !== ion.model_used)
+      ? '<span class="fb-tag">FALLBACK FROM ' + esc(ion.selected_model).toUpperCase() + '</span>' : '';
+  markActualRoute(ion.model_used, ion.selected_model);
+
+  $('muf-warn').innerHTML = data.muf_warning
+    ? '<div class="warn red"><span class="ic">!</span><span>MUF exceeded: the carrier frequency is above ' +
+      'foF2 at the reflection point. The signal may penetrate the layer instead of reflecting; ' +
+      'this SSL estimate is unreliable.</span></div>'
+    : '';
+
+  renderGP(data.gp_correction, data.muf_warning);
+  renderHop(pe.ground_distance_km, pe.virtual_height_km, elevDeg, mid[0], mid[1]);
+
+  $('r-empty').style.display = 'none';
+  $('solution').classList.add('on');
+  $('f-solve').textContent =
+    'LAST SOLVE: ' + (latencyMs / 1000).toFixed(2) + ' s · ' +
+    new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+}
+
+/* ═══════════════════ form submit ═══════════════════ */
+var form = $('loc-form'), btn = $('btn'), alertBox = $('alert-box');
+
+form.addEventListener('submit', function (e) {
+  e.preventDefault();
+
+  var rxLat = parseFloat($('f-rlat').value);
+  var rxLon = parseFloat($('f-rlon').value);
+  var elev  = parseFloat($('f-el').value);
+  var tsRaw = $('f-ts').value;
+
+  var payload = {
+    receiver_lat:    rxLat,
+    receiver_lon:    rxLon,
+    azimuth_deg:     parseFloat($('f-az').value),
+    elevation_deg:   elev,
+    frequency_mhz:   parseFloat($('f-freq').value),
+    timestamp:       tsRaw.length === 16 ? tsRaw + ':00' : tsRaw,
+    kp:              parseFloat($('f-kp').value),
+    dst:             parseFloat($('f-dst').value),
+    f107:            parseFloat($('f-f107').value),
+    irtam_available: $('f-irtam').checked
+  };
+
+  btn.disabled = true;
+  btn.innerHTML = 'Solving&hellip;';
+  alertBox.className = 'alert';
+  alertBox.textContent = '';
+  startStages();
+  $('map-veil').classList.add('on');
+  var t0 = performance.now();
+
+  fetch('/locate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function (resp) {
+    if (!resp.ok) {
+      return resp.json().catch(function () { return { detail: resp.statusText }; })
+        .then(function (err) {
+          var msg = err.detail
+            ? (Array.isArray(err.detail)
+                ? err.detail.map(function (d) { return d.msg; }).join('; ')
+                : String(err.detail))
+            : resp.statusText;
+          throw new Error('Server ' + resp.status + ': ' + msg);
+        });
     }
-    function clearAlert() {
-      alertBox.className  = 'alert';
-      alertBox.textContent = '';
-    }
-
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      var rxLat = parseFloat(document.getElementById('f-rlat').value);
-      var rxLon = parseFloat(document.getElementById('f-rlon').value);
-      var tsRaw = document.getElementById('f-ts').value;
-      var ts = tsRaw.length === 16 ? tsRaw + ':00' : tsRaw;
-
-      var payload = {
-        receiver_lat:    rxLat,
-        receiver_lon:    rxLon,
-        azimuth_deg:     parseFloat(document.getElementById('f-az').value),
-        elevation_deg:   parseFloat(document.getElementById('f-el').value),
-        frequency_mhz:   parseFloat(document.getElementById('f-freq').value),
-        timestamp:       ts,
-        kp:              parseFloat(document.getElementById('f-kp').value),
-        dst:             parseFloat(document.getElementById('f-dst').value),
-        f107:            parseFloat(document.getElementById('f-f107').value),
-        irtam_available: document.getElementById('f-irtam').checked
-      };
-
-      btn.disabled = true;
-      btn.textContent = 'COMPUTING…';
-      setAlert('loading', 'Querying ionospheric model — this may take a few seconds…');
-      document.getElementById('res-cards').style.display = 'none';
-      document.getElementById('res-empty').style.display = 'block';
-
-      fetch('/locate', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload)
-      })
-      .then(function(resp) {
-        if (!resp.ok) {
-          return resp.json().catch(function() { return { detail: resp.statusText }; })
-            .then(function(e) {
-              var msg = e.detail
-                ? (Array.isArray(e.detail) ? e.detail.map(function(d) { return d.msg; }).join('; ') : String(e.detail))
-                : resp.statusText;
-              throw new Error('Server ' + resp.status + ': ' + msg);
-            });
-        }
-        return resp.json();
-      })
-      .then(function(data) {
-        renderResult(data, rxLat, rxLon);
-        clearAlert();
-      })
-      .catch(function(err) {
-        setAlert('error', '✗  ' + err.message);
-      })
-      .finally(function() {
-        btn.disabled = false;
-        btn.textContent = '▷  COMPUTE GEOLOCATION';
-      });
-    });
-
-    function fv(val, unit) {
-      if (val === null || val === undefined) {
-        return '<span style="color:var(--muted);font-size:12px">n/a</span>';
-      }
-      return String(val) + (unit ? '<span class="unit">' + unit + '</span>' : '');
-    }
-
-    function renderResult(data, rxLat, rxLon) {
-      document.getElementById('res-panel').scrollTop = 0;
-
-      var pe  = data.primary_estimate;
-      var ion = data.ionosphere;
-      var gp  = data.gp_correction;
-
-      document.getElementById('r-lat').innerHTML    = fv(pe.transmitter_lat, '&deg;');
-      document.getElementById('r-lon').innerHTML    = fv(pe.transmitter_lon, '&deg;');
-      document.getElementById('r-dist').innerHTML   = fv(pe.ground_distance_km, ' km');
-      document.getElementById('r-vh').innerHTML     = fv(pe.virtual_height_km, ' km');
-      document.getElementById('r-method').textContent = pe.method;
-
-      document.getElementById('r-model').textContent  = ion.model_used;
-      document.getElementById('r-reason').textContent = ion.reason;
-
-      document.getElementById('gp-note').textContent   = gp.note;
-      document.getElementById('r-gp-lat').innerHTML    = fv(gp.corrected_lat, '&deg;');
-      document.getElementById('r-gp-lon').innerHTML    = fv(gp.corrected_lon, '&deg;');
-      document.getElementById('r-gp-ulat').innerHTML   = fv(gp.uncertainty_lat_deg, '&deg;');
-      document.getElementById('r-gp-ulon').innerHTML   = fv(gp.uncertainty_lon_deg, '&deg;');
-
-      document.getElementById('res-empty').style.display = 'none';
-      document.getElementById('res-cards').style.display = 'flex';
-
-      plotOnMap(rxLat, rxLon, pe.transmitter_lat, pe.transmitter_lon);
-    }
-  </script>
+    return resp.json();
+  })
+  .then(function (data) {
+    renderSolution(data, rxLat, rxLon, elev, performance.now() - t0);
+  })
+  .catch(function (err) {
+    alertBox.className = 'alert error';
+    alertBox.textContent = '✕  ' + err.message;
+  })
+  .finally(function () {
+    btn.disabled = false;
+    btn.innerHTML = '▷&nbsp; Compute geolocation';
+    stopStages();
+    $('map-veil').classList.remove('on');
+  });
+});
+</script>
 </body>
 </html>

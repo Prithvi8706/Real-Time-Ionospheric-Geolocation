@@ -31,19 +31,31 @@ def get_iri_profile(lat: float, lon: float, dt: datetime.datetime) -> IRIProfile
         dt: Datetime (UTC)
 
     Returns:
-        IRIProfile dataclass with predicted ionospheric parameters
+        IRIProfile dataclass with predicted ionospheric parameters.
+        Returns a null profile (all None fields) if IRI data is unavailable
+        or out of the model's valid date range (approximately 1958–2020).
     """
     try:
         from iri2016 import IRI
 
         result = IRI(dt, [100, 500, 10], lat, lon)
 
-        ne_profile = result['ne'].values
-        alts = result['alt_km'].values
-        NmF2 = float(np.nanmax(ne_profile))
-        hmF2 = float(alts[np.nanargmax(ne_profile)])
-        foF2 = 8.98e-3 * np.sqrt(NmF2)
-        TEC = float(np.nansum(ne_profile) * 10 * 1e-16)
+        # Use IRI's own scalar outputs — more accurate than recomputing from ne.
+        hmF2 = float(result['hmF2'].values)
+
+        # IRI uses -1.0 as a sentinel when the requested date is outside its
+        # coverage (typically years >= 2021 for the bundled coefficient files).
+        if hmF2 <= 0:
+            print(
+                f"WARNING: IRI returned invalid hmF2={hmF2} for "
+                f"({lat}, {lon}, {dt}) — date likely outside IRI coverage "
+                f"(model valid ~1958–2020). Returning null profile."
+            )
+            return IRIProfile(lat=lat, lon=lon, datetime=dt)
+
+        NmF2 = float(result['NmF2'].values)
+        foF2 = float(result['foF2'].values)
+        TEC  = float(result['TEC'].values)
 
         return IRIProfile(
             lat=lat, lon=lon, datetime=dt,

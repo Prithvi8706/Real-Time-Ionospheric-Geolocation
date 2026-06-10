@@ -148,7 +148,7 @@ def get_rayhf_profile(lat: float, lon: float, dt: datetime.datetime) -> RayHFPro
         peak_idx = int(np.nanargmax(ne))
         hmF2 = float(alts[peak_idx])
         NmF2 = float(ne[peak_idx])
-        foF2 = float(8.98e-3 * np.sqrt(NmF2)) if NmF2 > 0 else None
+        foF2 = float(8.98e-6 * np.sqrt(NmF2)) if NmF2 > 0 else None
 
         return RayHFProfile(
             lat=lat, lon=lon, datetime=dt,
