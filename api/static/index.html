@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Single-station HF emitter geolocation console — hybrid ionospheric model with GP residual correction (DRDO DIA-CoE/EW/02).">
+<meta name="theme-color" content="#070b12">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23070b12'/%3E%3Crect x='9.5' y='9.5' width='13' height='13' fill='%2300d4f5' transform='rotate(45 16 16)'/%3E%3C/svg%3E">
 <title>RTIL&#x2011;GEO &middot; DIA&#x2011;CoE/EW/02</title>
 <link rel="stylesheet" href="/static/leaflet.css" />
 <style>
@@ -23,7 +26,7 @@
   --amber-line:rgba(245,176,74,0.25);
   --text:      #d2dce8;
   --muted:     #7d92a8;
-  --faint:     #43586f;
+  --faint:     #5a7089;
   --green:     #46c97a;
   --red:       #ff6056;
   --red-bg:    rgba(255,96,86,0.07);
@@ -110,7 +113,7 @@ header::before {
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
-.h-clock .utc { font-size: 9px; color: var(--faint); letter-spacing: 0.16em; margin-left: 5px; }
+.h-clock .utc { font-size: 9.5px; color: var(--faint); letter-spacing: 0.16em; margin-left: 5px; }
 
 /* ════════════════════════════ WORKSPACE ════════════════════════════ */
 .workspace {
@@ -182,6 +185,12 @@ header::before {
   transition: color 0.15s;
 }
 .tip:hover { color: var(--cyan); }
+.tip:focus-visible {
+  color: var(--cyan);
+  outline: 1px solid var(--cyan);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
 
 input[type="number"], input[type="datetime-local"] {
   background: var(--inset);
@@ -251,7 +260,7 @@ input[type="range"]:focus-visible { outline: 1px solid var(--cyan); outline-offs
 .kp-storm-tick::after {
   content: 'STORM';
   position: absolute; top: -2px; left: 4px;
-  font-family: var(--mono); font-size: 7.5px;
+  font-family: var(--mono); font-size: 8.5px;
   letter-spacing: 0.1em; color: var(--red);
   opacity: 0.8;
 }
@@ -286,7 +295,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
   transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 .route-name { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--muted); transition: color 0.2s; }
-.route-cond { font-family: var(--mono); font-size: 9px; color: var(--faint); letter-spacing: 0.02em; line-height: 1.4; }
+.route-cond { font-family: var(--mono); font-size: 9.5px; color: var(--faint); letter-spacing: 0.02em; line-height: 1.4; }
 .route-row.armed {
   border-color: var(--cyan-line);
   background: var(--cyan-bg);
@@ -298,7 +307,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
 .route-row.actual .route-name { color: var(--green); }
 .route-note {
   font-family: var(--mono);
-  font-size: 9px; color: var(--faint);
+  font-size: 9.5px; color: var(--faint);
   letter-spacing: 0.04em;
   padding: 1px 2px;
 }
@@ -458,7 +467,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
   left: 10px; bottom: 26px;
   z-index: var(--z-overlay);
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   color: var(--muted);
   background: rgba(7,11,18,0.8);
   border: 1px solid var(--border);
@@ -545,7 +554,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
   gap: 8px;
 }
 .r-sec-lbl .tag {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 3px;
@@ -560,7 +569,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
 #hop-svg { display: block; width: 100%; height: auto; }
 .hop-cap {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 9.5px;
   color: var(--faint);
   text-align: center;
   padding: 2px 6px 7px;
@@ -572,13 +581,13 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
 .coord {
   display: flex; flex-direction: column; gap: 1px;
 }
-.coord .k { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.coord .k { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .coord .v { font-family: var(--mono); font-size: 17px; color: var(--cyan); line-height: 1.25; }
 .coord .v.am { color: var(--amber); font-size: 15px; }
 .sgrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; }
 .sgrid.two { grid-template-columns: 1fr 1fr; }
 .stat { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.stat .k { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.stat .k { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .stat .v { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
 .stat .v .u { font-size: 9.5px; color: var(--faint); margin-left: 2px; }
 .method-note { margin-top: 9px; font-size: 10.5px; color: var(--muted); font-style: italic; }
@@ -591,7 +600,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--cyan); c
 }
 .model-line .name { font-size: 14px; font-weight: 700; color: var(--text); }
 .model-line .fb-tag {
-  font-size: 8.5px; letter-spacing: 0.1em;
+  font-size: 9px; letter-spacing: 0.1em;
   color: var(--amber);
   border: 1px solid var(--amber-line);
   background: var(--amber-bg);
@@ -627,7 +636,7 @@ footer {
   gap: 18px;
   padding: 0 14px;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.05em;
   color: var(--faint);
   white-space: nowrap;
@@ -643,6 +652,24 @@ footer .f-spacer { flex: 1; }
   .panel-l { border-right: none; border-bottom: 1px solid var(--border); overflow: visible; }
   .panel-map { height: 60vh; min-height: 380px; }
   .panel-r { border-left: none; border-top: 1px solid var(--border); overflow: visible; }
+}
+@media (max-width: 760px) {
+  header { padding: 0 12px; gap: 10px; }
+  .h-meta .h-sub { display: none; }
+  .h-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  footer {
+    height: auto;
+    min-height: 26px;
+    flex-wrap: wrap;
+    white-space: normal;
+    gap: 2px 16px;
+    padding: 5px 14px;
+    line-height: 1.5;
+  }
+  footer .f-spacer { display: none; }
+}
+@media (max-width: 540px) {
+  .h-meta, #health-txt { display: none; }
 }
 
 /* ════════════════════════ REDUCED MOTION ════════════════════════ */
@@ -661,8 +688,8 @@ footer .f-spacer { flex: 1; }
   <span class="h-logo">RTIL&#x2011;GEO</span>
   <div class="h-sep"></div>
   <div class="h-meta">
-    <strong>Real-Time Ionospheric Geolocation</strong><br>
-    DRDO&nbsp;DIA&#x2011;CoE/EW/02&nbsp;&nbsp;&middot;&nbsp;&nbsp;Single-Station HF Emitter Localisation
+    <strong>Real-Time Ionospheric Geolocation</strong><span class="h-sub"><br>
+    DRDO&nbsp;DIA&#x2011;CoE/EW/02&nbsp;&nbsp;&middot;&nbsp;&nbsp;Single-Station HF Emitter Localisation</span>
   </div>
   <div class="h-spacer"></div>
   <div class="h-health" id="health"><span class="dot"></span><span id="health-txt">CHECKING API&hellip;</span></div>
@@ -692,36 +719,36 @@ footer .f-spacer { flex: 1; }
         <div class="frow">
           <div class="field">
             <label for="f-rlat">Receiver lat <span class="u">&deg;</span>
-              <span class="tip" title="Latitude of the receiving station in decimal degrees. South is negative.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Latitude of the receiving station in decimal degrees. South is negative.">&#9432;</span></label>
             <input type="number" id="f-rlat" value="23.0" step="0.01" min="-90" max="90" required>
           </div>
           <div class="field">
             <label for="f-rlon">Receiver lon <span class="u">&deg;</span>
-              <span class="tip" title="Longitude of the receiving station in decimal degrees. West is negative.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Longitude of the receiving station in decimal degrees. West is negative.">&#9432;</span></label>
             <input type="number" id="f-rlon" value="72.5" step="0.01" min="-180" max="180" required>
           </div>
         </div>
         <div class="frow">
           <div class="field">
             <label for="f-az">Azimuth <span class="u">&deg; true</span>
-              <span class="tip" title="Bearing of signal arrival: 0 = north, 90 = east, 180 = south, 270 = west.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Bearing of signal arrival: 0 = north, 90 = east, 180 = south, 270 = west.">&#9432;</span></label>
             <input type="number" id="f-az" value="45.0" step="0.1" min="0" max="360" required>
           </div>
           <div class="field">
             <label for="f-el">Elevation <span class="u">&deg; (1&ndash;60)</span>
-              <span class="tip" title="Arrival angle above the horizon. Higher elevation means a shorter skip and a closer emitter. The API accepts 1 to 60 degrees.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Arrival angle above the horizon. Higher elevation means a shorter skip and a closer emitter. The API accepts 1 to 60 degrees.">&#9432;</span></label>
             <input type="number" id="f-el" value="30.0" step="0.1" min="1" max="60" required>
           </div>
         </div>
         <div class="frow" style="grid-template-columns: 0.8fr 1.2fr;">
           <div class="field">
             <label for="f-freq">Frequency <span class="u">MHz (2&ndash;30)</span>
-              <span class="tip" title="HF carrier frequency. Skywave propagation occupies 2 to 30 MHz; above the layer's critical frequency foF2 the signal penetrates instead of reflecting.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="HF carrier frequency. Skywave propagation occupies 2 to 30 MHz; above the layer's critical frequency foF2 the signal penetrates instead of reflecting.">&#9432;</span></label>
             <input type="number" id="f-freq" value="10.0" step="0.1" min="2" max="30" required>
           </div>
           <div class="field">
             <label for="f-ts">Time of intercept <span class="u">UTC</span>
-              <span class="tip" title="Timestamp of the intercept. The ionospheric model is queried for this exact moment.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Timestamp of the intercept. The ionospheric model is queried for this exact moment.">&#9432;</span></label>
             <input type="datetime-local" id="f-ts" value="2012-06-15T12:00" required>
           </div>
         </div>
@@ -731,7 +758,7 @@ footer .f-spacer { flex: 1; }
       <div class="fields">
         <div class="field">
           <label for="f-kp">Kp index <span class="u">0 calm &ndash; 9 extreme</span>
-            <span class="tip" title="Planetary geomagnetic activity index. At Kp 5 and above the pipeline switches to the PyRayHF storm-time ray tracer.">&#9432;</span></label>
+            <span class="tip" tabindex="0" title="Planetary geomagnetic activity index. At Kp 5 and above the pipeline switches to the PyRayHF storm-time ray tracer.">&#9432;</span></label>
           <div class="kp-wrap">
             <div class="kp-rail">
               <input type="range" id="f-kp-rail" min="0" max="9" step="0.1" value="1.0" aria-label="Kp index slider">
@@ -743,19 +770,19 @@ footer .f-spacer { flex: 1; }
         <div class="frow">
           <div class="field">
             <label for="f-dst">Dst <span class="u">nT, storm &le; &minus;100</span>
-              <span class="tip" title="Ring-current storm index in nanotesla. Near 0 is calm; at or below -100 nT the storm branch is selected.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Ring-current storm index in nanotesla. Near 0 is calm; at or below -100 nT the storm branch is selected.">&#9432;</span></label>
             <input type="number" id="f-dst" value="-10.0" step="1" min="-500" max="50" required>
           </div>
           <div class="field">
             <label for="f-f107">F10.7 flux <span class="u">SFU</span>
-              <span class="tip" title="Solar radio flux at 10.7 cm. Range 50 to 300 SFU; the 2012 training period sat near 130.">&#9432;</span></label>
+              <span class="tip" tabindex="0" title="Solar radio flux at 10.7 cm. Range 50 to 300 SFU; the 2012 training period sat near 130.">&#9432;</span></label>
             <input type="number" id="f-f107" value="130.0" step="1" min="50" max="300" required>
           </div>
         </div>
         <div class="chk-row">
           <input type="checkbox" id="f-irtam" checked>
           <label for="f-irtam">IRTAM real-time feed available</label>
-          <span class="tip" title="When live GIRO assimilation data is available, nominal conditions route to PyIRTAM instead of the IRI-2016 climatology.">&#9432;</span>
+          <span class="tip" tabindex="0" title="When live GIRO assimilation data is available, nominal conditions route to PyIRTAM instead of the IRI-2016 climatology.">&#9432;</span>
         </div>
       </div>
 
@@ -926,24 +953,31 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, 1000);
 
-fetch('/health').then(function (r) { return r.json(); }).then(function (h) {
-  var el = $('health');
-  if (h.status === 'ok') {
-    el.classList.add('ok');
-    $('health-txt').textContent = h.gp_models_loaded ? 'OPERATIONAL' : 'OPERATIONAL · GP OFFLINE';
-    var rows = h.gp_training_rows || {};
-    var parts = [];
-    if (h.gp_models && h.gp_models.irtam) parts.push('IRTAM ✓' + (rows.irtam ? ' (' + rows.irtam + ' rows)' : ''));
-    if (h.gp_models && h.gp_models.sami3) parts.push('STORM ✓' + (rows.sami3 ? ' (' + rows.sami3 + ' rows)' : ''));
-    $('f-gp').textContent = 'GP MODELS: ' + (parts.length ? parts.join('  ·  ') : 'not loaded');
-  } else {
+function checkHealth() {
+  fetch('/health').then(function (r) { return r.json(); }).then(function (h) {
+    var el = $('health');
+    el.classList.remove('ok', 'bad');
+    if (h.status === 'ok') {
+      el.classList.add('ok');
+      $('health-txt').textContent = h.gp_models_loaded ? 'OPERATIONAL' : 'OPERATIONAL · GP OFFLINE';
+      var rows = h.gp_training_rows || {};
+      var parts = [];
+      if (h.gp_models && h.gp_models.irtam) parts.push('IRTAM ✓' + (rows.irtam ? ' (' + rows.irtam + ' rows)' : ''));
+      if (h.gp_models && h.gp_models.sami3) parts.push('STORM ✓' + (rows.sami3 ? ' (' + rows.sami3 + ' rows)' : ''));
+      $('f-gp').textContent = 'GP MODELS: ' + (parts.length ? parts.join('  ·  ') : 'not loaded');
+    } else {
+      el.classList.add('bad');
+      $('health-txt').textContent = 'DEGRADED';
+    }
+  }).catch(function () {
+    var el = $('health');
+    el.classList.remove('ok');
     el.classList.add('bad');
-    $('health-txt').textContent = 'DEGRADED';
-  }
-}).catch(function () {
-  $('health').classList.add('bad');
-  $('health-txt').textContent = 'API UNREACHABLE';
-});
+    $('health-txt').textContent = 'API UNREACHABLE';
+  });
+}
+checkHealth();
+setInterval(checkHealth, 30000);
 
 /* ═══════════════════ map ═══════════════════ */
 var map = L.map('map', { zoomControl: true, attributionControl: true })
@@ -1175,8 +1209,8 @@ function renderHop(D, h, elevDeg, midLat, midLon) {
     fill: 'none', stroke: 'rgba(0,212,245,0.45)', 'stroke-width': 1, 'stroke-dasharray': '5 4'
   }));
   svg.appendChild(svgEl('text', {
-    x: padX + 4, y: Y(h) + 13, fill: '#0a7d92',
-    'font-size': 9, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    x: padX + 4, y: Y(h) + 16, fill: '#0a7d92',
+    'font-size': 13, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, 'reflecting layer (schematic band)'));
 
   /* virtual mirror-model ray: RX -> apex -> TX */
@@ -1202,11 +1236,11 @@ function renderHop(D, h, elevDeg, midLat, midLon) {
   /* virtual-height drop line at midpoint */
   svg.appendChild(svgEl('line', {
     x1: apex[0], y1: apex[1], x2: X(0), y2: Y(bulge),
-    stroke: '#43586f', 'stroke-width': 1, 'stroke-dasharray': '3 4'
+    stroke: '#5a7089', 'stroke-width': 1, 'stroke-dasharray': '3 4'
   }));
   svg.appendChild(svgEl('text', {
     x: apex[0] + 6, y: (apex[1] + Y(bulge)) / 2, fill: '#7d92a8',
-    'font-size': 10, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    'font-size': 14, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, "h' = " + h.toFixed(1) + ' km'));
 
   /* endpoint markers + labels */
@@ -1217,28 +1251,28 @@ function renderHop(D, h, elevDeg, midLat, midLon) {
   }));
   svg.appendChild(svgEl('circle', { cx: apex[0], cy: apex[1], r: 3.2, fill: '#d2dce8' }));
   svg.appendChild(svgEl('text', {
-    x: rx[0], y: rx[1] + 16, fill: '#7d92a8', 'text-anchor': 'middle',
-    'font-size': 10, 'font-weight': 700, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    x: rx[0], y: rx[1] + 19, fill: '#7d92a8', 'text-anchor': 'middle',
+    'font-size': 14, 'font-weight': 700, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, 'RX'));
   svg.appendChild(svgEl('text', {
-    x: tx[0], y: tx[1] + 16, fill: '#7d92a8', 'text-anchor': 'middle',
-    'font-size': 10, 'font-weight': 700, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    x: tx[0], y: tx[1] + 19, fill: '#7d92a8', 'text-anchor': 'middle',
+    'font-size': 14, 'font-weight': 700, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, 'TX est'));
   svg.appendChild(svgEl('text', {
-    x: apex[0], y: apex[1] - 9, fill: '#d2dce8', 'text-anchor': 'middle',
-    'font-size': 9, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    x: apex[0], y: apex[1] - 11, fill: '#d2dce8', 'text-anchor': 'middle',
+    'font-size': 13, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, 'apex · pass-2 sample point'));
 
   /* elevation annotation at RX */
   svg.appendChild(svgEl('text', {
-    x: rx[0] + 9, y: rx[1] - 9, fill: '#0a7d92',
-    'font-size': 9.5, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    x: rx[0] + 9, y: rx[1] - 10, fill: '#0a7d92',
+    'font-size': 13, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, 'el ' + elevDeg.toFixed(1) + '°'));
 
   /* ground-range label */
   svg.appendChild(svgEl('text', {
-    x: W / 2, y: H - 8, fill: '#43586f', 'text-anchor': 'middle',
-    'font-size': 10, 'font-family': 'Cascadia Code, ui-monospace, monospace'
+    x: W / 2, y: H - 6, fill: '#5a7089', 'text-anchor': 'middle',
+    'font-size': 13, 'font-family': 'Cascadia Code, ui-monospace, monospace'
   }, 'ground range ' + D.toFixed(1) + ' km'));
 
   $('hop-cap').textContent =
@@ -1310,7 +1344,7 @@ function plotSolution(rxLat, rxLon, data) {
   return mid;
 }
 
-function renderGP(gp, muf) {
+function renderGP(gp) {
   var el = $('gp-body');
   if (!gp) { el.innerHTML = ''; return; }
   var html = '';
@@ -1376,7 +1410,7 @@ function renderSolution(data, rxLat, rxLon, elevDeg, latencyMs) {
       'this SSL estimate is unreliable.</span></div>'
     : '';
 
-  renderGP(data.gp_correction, data.muf_warning);
+  renderGP(data.gp_correction);
   renderHop(pe.ground_distance_km, pe.virtual_height_km, elevDeg, mid[0], mid[1]);
 
   $('r-empty').style.display = 'none';
@@ -1418,10 +1452,14 @@ form.addEventListener('submit', function (e) {
   $('map-veil').classList.add('on');
   var t0 = performance.now();
 
+  var ctrl = window.AbortController ? new AbortController() : null;
+  var solveTimeout = ctrl ? setTimeout(function () { ctrl.abort(); }, 120000) : null;
+
   fetch('/locate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: ctrl ? ctrl.signal : undefined
   })
   .then(function (resp) {
     if (!resp.ok) {
@@ -1442,9 +1480,13 @@ form.addEventListener('submit', function (e) {
   })
   .catch(function (err) {
     alertBox.className = 'alert error';
-    alertBox.textContent = '✕  ' + err.message;
+    alertBox.textContent = '✕  ' + (err.name === 'AbortError'
+      ? 'No response after 120 s — the solve timed out. Check the API status and retry.'
+      : err.message);
+    alertBox.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'nearest' });
   })
   .finally(function () {
+    if (solveTimeout) clearTimeout(solveTimeout);
     btn.disabled = false;
     btn.innerHTML = '▷&nbsp; Compute geolocation';
     stopStages();
