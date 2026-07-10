@@ -71,3 +71,69 @@ def gc_midpoint(lat1: float, lon1: float, lat2: float, lon2: float) -> tuple[flo
     )
     mid_lon = lmb1 + np.arctan2(by, np.cos(phi1) + bx)
     return float(np.degrees(mid_lat)), float(np.degrees(mid_lon))
+
+
+@dataclass
+class ObservationTruth:
+    """A ground-truth test signal: known emitter + what the receiver observes."""
+    emitter_lat: float
+    emitter_lon: float
+    receiver_lat: float
+    receiver_lon: float
+    azimuth_deg: float
+    elevation_deg: float
+    frequency_mhz: float
+    ground_range_km: float
+    virtual_height_km: float
+    model_used: str
+    dt: datetime
+    kp: float
+    dst: float
+
+
+def synthesize_observation(
+    emitter_lat: float,
+    emitter_lon: float,
+    receiver_lat: float,
+    receiver_lon: float,
+    frequency_mhz: float,
+    dt: datetime,
+    kp: float,
+    dst: float,
+    irtam_available: bool = False,
+) -> ObservationTruth:
+    """
+    Forward geometry: known emitter -> the (az, el) the receiver observes.
+
+    Exact inverse of the solver: elevation = atan(h / ground_range) inverts
+    compute_ground_distance's ground_distance = h / tan(elevation), with h
+    taken from the real hybrid ionosphere at the great-circle bounce midpoint
+    via the same _extract_height logic ssl_locate uses.
+    """
+    ground_range_km = haversine_km(receiver_lat, receiver_lon, emitter_lat, emitter_lon)
+    azimuth_deg = initial_bearing_deg(receiver_lat, receiver_lon, emitter_lat, emitter_lon)
+
+    mid_lat, mid_lon = gc_midpoint(receiver_lat, receiver_lon, emitter_lat, emitter_lon)
+    iono = get_ionosphere(
+        lat=mid_lat, lon=mid_lon, dt=dt, kp=kp, dst=dst,
+        irtam_available=irtam_available,
+    )
+    virtual_height_km = _extract_height(iono["profile"])
+
+    elevation_deg = float(np.degrees(np.arctan(virtual_height_km / ground_range_km)))
+
+    return ObservationTruth(
+        emitter_lat=emitter_lat,
+        emitter_lon=emitter_lon,
+        receiver_lat=receiver_lat,
+        receiver_lon=receiver_lon,
+        azimuth_deg=azimuth_deg,
+        elevation_deg=elevation_deg,
+        frequency_mhz=frequency_mhz,
+        ground_range_km=ground_range_km,
+        virtual_height_km=virtual_height_km,
+        model_used=iono["model_used"],
+        dt=dt,
+        kp=kp,
+        dst=dst,
+    )
