@@ -181,3 +181,45 @@ def test_zero_noise_recovery_varying_height_bounded():
 
     err_km = haversine_km(em_lat, em_lon, result.transmitter_lat, result.transmitter_lon)
     assert err_km < 25.0
+
+
+# ── Elevation-band guard + CSV set builder ───────────────────────────────
+
+EXPECTED_COLUMNS = [
+    "emitter_lat", "emitter_lon", "receiver_lat", "receiver_lon",
+    "azimuth_deg", "elevation_deg", "frequency_mhz",
+    "ground_range_km", "virtual_height_km", "model_used",
+    "timestamp", "kp", "dst",
+]
+
+
+def test_elevation_band_guard_drops_out_of_band():
+    """
+    100 km range -> elevation ~71.6 deg (>60), 20000 km -> ~0.86 deg (<1):
+    both must be dropped; only the 800 km emitter survives.
+    """
+    from data.generate_test_signals import build_test_signal_set
+
+    with patch("data.generate_test_signals.get_ionosphere", return_value=_iono(300.0)):
+        df = build_test_signal_set(
+            azimuths_deg=[90.0],
+            ground_ranges_km=[100.0, 800.0, 20000.0],
+            conditions=[{"dt": DT, "kp": 1.0, "dst": -10.0}],
+        )
+
+    assert len(df) == 1
+    assert list(df.columns) == EXPECTED_COLUMNS
+    assert df["elevation_deg"].between(1.0, 60.0).all()
+
+
+def test_build_full_default_grid():
+    """Default grid: 8 azimuths x 3 ranges x 3 conditions, all in-band at h=300 km."""
+    from data.generate_test_signals import build_test_signal_set
+
+    with patch("data.generate_test_signals.get_ionosphere", return_value=_iono(300.0)):
+        df = build_test_signal_set()
+
+    assert len(df) == 72
+    assert df["elevation_deg"].between(1.0, 60.0).all()
+    assert (df["receiver_lat"] == RX_LAT).all()
+    assert (df["receiver_lon"] == RX_LON).all()

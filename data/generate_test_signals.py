@@ -137,3 +137,86 @@ def synthesize_observation(
         kp=kp,
         dst=dst,
     )
+
+
+# ── Reproducible emitter set (spec §3.1) ─────────────────────────────────
+
+AZIMUTHS_DEG = list(np.arange(0.0, 360.0, 45.0))
+GROUND_RANGES_KM = [800.0, 1500.0, 2200.0]
+FREQUENCY_MHZ = 10.0
+CONDITIONS = [
+    {"dt": datetime(2012, 6, 15, 12, 0, 0), "kp": 1.0, "dst": -10.0},
+    {"dt": datetime(2012, 6, 15, 0, 0, 0),  "kp": 1.0, "dst": -10.0},
+    {"dt": datetime(2012, 6, 15, 12, 0, 0), "kp": 6.0, "dst": -120.0},
+]
+
+OUTPUT_CSV = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "processed", "test_signals.csv",
+)
+
+
+def build_test_signal_set(
+    receiver_lat: float = RECEIVER_LAT,
+    receiver_lon: float = RECEIVER_LON,
+    azimuths_deg=AZIMUTHS_DEG,
+    ground_ranges_km=GROUND_RANGES_KM,
+    conditions=CONDITIONS,
+    frequency_mhz: float = FREQUENCY_MHZ,
+) -> pd.DataFrame:
+    """
+    Sweep the emitter grid, synthesize each observation against the real
+    ionosphere, and drop any signal whose true elevation falls outside the
+    solver's validated 1-60 degree band (logged count).
+    """
+    np.random.seed(42)  # reproducibility anchor for the emitter set (spec §3.1)
+
+    rows = []
+    dropped = 0
+    for cond in conditions:
+        for az in azimuths_deg:
+            for rng_km in ground_ranges_km:
+                em_lat, em_lon = compute_transmitter_location(
+                    receiver_lat, receiver_lon, az, rng_km
+                )
+                obs = synthesize_observation(
+                    em_lat, em_lon, receiver_lat, receiver_lon,
+                    frequency_mhz=frequency_mhz,
+                    dt=cond["dt"], kp=cond["kp"], dst=cond["dst"],
+                )
+                if not (ELEVATION_MIN_DEG <= obs.elevation_deg <= ELEVATION_MAX_DEG):
+                    dropped += 1
+                    continue
+                rows.append({
+                    "emitter_lat":        obs.emitter_lat,
+                    "emitter_lon":        obs.emitter_lon,
+                    "receiver_lat":       obs.receiver_lat,
+                    "receiver_lon":       obs.receiver_lon,
+                    "azimuth_deg":        obs.azimuth_deg,
+                    "elevation_deg":      obs.elevation_deg,
+                    "frequency_mhz":      obs.frequency_mhz,
+                    "ground_range_km":    obs.ground_range_km,
+                    "virtual_height_km":  obs.virtual_height_km,
+                    "model_used":         obs.model_used,
+                    "timestamp":          obs.dt.isoformat(),
+                    "kp":                 obs.kp,
+                    "dst":                obs.dst,
+                })
+
+    if dropped:
+        print(f"Dropped {dropped} signal(s) with elevation outside "
+              f"[{ELEVATION_MIN_DEG}, {ELEVATION_MAX_DEG}] deg")
+    return pd.DataFrame(rows, columns=[
+        "emitter_lat", "emitter_lon", "receiver_lat", "receiver_lon",
+        "azimuth_deg", "elevation_deg", "frequency_mhz",
+        "ground_range_km", "virtual_height_km", "model_used",
+        "timestamp", "kp", "dst",
+    ])
+
+
+if __name__ == "__main__":
+    df = build_test_signal_set()
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    df.to_csv(OUTPUT_CSV, index=False)
+    print(f"Saved {len(df)} test signals to {OUTPUT_CSV}")
+    print(df.head(10).to_string())
