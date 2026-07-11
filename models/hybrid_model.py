@@ -31,7 +31,8 @@ def get_ionosphere(
     dt: datetime,
     kp: float,
     dst: float,
-    irtam_available: bool = False
+    irtam_available: bool = False,
+    force_model: str = None
 ) -> dict:
     """
     Master function — selects the right model and returns ionospheric profile.
@@ -52,7 +53,17 @@ def get_ionosphere(
       4. IRI      — calm fallback
     """
 
-    selection: SelectionResult = select_model(lat, kp, dst, irtam_available)
+    if force_model is not None:
+        # Two-pass consistency (TODOS item 1): the refined SSL pass pins the
+        # model chosen by the rough pass so a midpoint that crosses the ±60°
+        # boundary cannot silently mix model families. Fallback still applies.
+        selection = SelectionResult(
+            model=force_model,
+            reason=f"pinned to rough-pass selection ({force_model}) "
+                   "for two-pass consistency",
+        )
+    else:
+        selection = select_model(lat, kp, dst, irtam_available)
     logger.info(f"Model selected: {selection.model} | {selection.reason}")
 
     # D3 fix: profile initialised to None — each branch sets it explicitly.

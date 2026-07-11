@@ -54,14 +54,14 @@ def make_memoized(fn, quant_deg: float = QUANT_DEG):
     cache = {}
     stats = {"calls": 0, "misses": 0}
 
-    def wrapper(lat, lon, dt, kp, dst, irtam_available=False):
+    def wrapper(lat, lon, dt, kp, dst, irtam_available=False, **kwargs):
         stats["calls"] += 1
         key = (round(lat / quant_deg), round(lon / quant_deg),
-               dt, kp, dst, irtam_available)
+               dt, kp, dst, irtam_available, tuple(sorted(kwargs.items())))
         if key not in cache:
             stats["misses"] += 1
             cache[key] = fn(lat=lat, lon=lon, dt=dt, kp=kp, dst=dst,
-                            irtam_available=irtam_available)
+                            irtam_available=irtam_available, **kwargs)
         return cache[key]
 
     wrapper.stats = stats

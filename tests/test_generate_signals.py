@@ -163,7 +163,7 @@ def test_zero_noise_recovery_varying_height_bounded():
     """
     from data.generate_test_signals import synthesize_observation
 
-    def varying_iono(lat, lon, dt, kp, dst, irtam_available=False):
+    def varying_iono(lat, lon, dt, kp, dst, irtam_available=False, **kwargs):
         return _iono(300.0 + 2.0 * (lat - RX_LAT))
 
     em_lat, em_lon = compute_transmitter_location(RX_LAT, RX_LON, 45.0, 1500.0)

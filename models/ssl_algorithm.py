@@ -76,6 +76,19 @@ def compute_transmitter_location(
 
     return np.degrees(lat2), np.degrees(lon2)
 
+def _circular_mean_deg(a_deg: float, b_deg: float) -> float:
+    """
+    Circular mean of two longitudes, safe across the ±180° antimeridian
+    and normalizing into [-180, 180]. For |a-b| < 180° this is exactly the
+    arithmetic bisector, so mid-latitude behaviour is unchanged.
+    """
+    a = np.radians(a_deg)
+    b = np.radians(b_deg)
+    return float(np.degrees(np.arctan2(
+        (np.sin(a) + np.sin(b)) / 2.0,
+        (np.cos(a) + np.cos(b)) / 2.0,
+    )))
+
 def ssl_locate(
     receiver_lat: float,
     receiver_lon: float,
@@ -111,18 +124,22 @@ def ssl_locate(
         azimuth_deg, rough_distance
     )
 
-    # Step 1b: Compute midpoint between receiver and rough transmitter
+    # Step 1b: Compute midpoint between receiver and rough transmitter.
+    # Longitude uses a circular mean — antimeridian-safe and normalized
+    # into [-180, 180] before it reaches the ionospheric models.
     mid_lat = (receiver_lat + rough_tx_lat) / 2
-    mid_lon = (receiver_lon + rough_tx_lon) / 2
+    mid_lon = _circular_mean_deg(receiver_lon, rough_tx_lon)
 
-    # Step 1c: Re-query ionosphere at midpoint (bounce point)
+    # Step 1c: Re-query ionosphere at midpoint (bounce point), pinned to the
+    # rough pass's model selection (TODOS item 1: two-pass consistency)
     iono = get_ionosphere(
         lat=mid_lat,
         lon=mid_lon,
         dt=dt,
         kp=kp,
         dst=dst,
-        irtam_available=irtam_available
+        irtam_available=irtam_available,
+        force_model=iono_init["selected_model"]
     )
     virtual_height_km = _extract_height(iono["profile"])
 
