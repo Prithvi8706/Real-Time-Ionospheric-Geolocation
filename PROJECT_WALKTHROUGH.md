@@ -289,15 +289,23 @@ it matches the documentation exactly.
 | Population | Rows | Test fold | Baseline MAE (physics only) | GP-corrected MAE | Improvement |
 |---|---|---|---|---|---|
 | **IRTAM** (nominal, 97.6% of data) | 9,228 | 1,846 | 103.29 km | 77.15 km | 26.14 km (25.3%) |
-| **PyRayHF** (storm, 2.4% of data) | 229 | 46 | 610.80 km | 111.96 km | 498.84 km (81.7%) |
+| **PyRayHF** (storm, 0.7% of data) | 66 | 14 | 405.90 km | 379.64 km | 26.26 km (6.5%) |
 
 Error distribution (held-out test folds):
 
 | Statistic | IRTAM baseline | IRTAM corrected | Storm baseline | Storm corrected |
 |---|---|---|---|---|
-| Median | 62.20 km | 52.23 km | 560.40 km | 95.76 km |
-| P90 | 249.55 km | 170.36 km | 1,123.08 km | 243.89 km |
-| Worst case | 1,012.35 km | 681.78 km | 1,266.01 km | 314.54 km |
+| Median | 62.20 km | 52.23 km | 286.38 km | 247.03 km |
+| P90 | 249.55 km | 170.36 km | 904.06 km | 861.86 km |
+| Worst case | 1,012.35 km | 681.78 km | 1,147.55 km | 1,304.26 km |
+
+**D8 revision (2026-07-11):** the storm row changed fundamentally. PyRayHF now
+ray-traces at the request frequency and a `find_vh` shape misuse (per-layer
+value instead of the vertical integral) was corrected; the old headline
+610.80 → 111.96 km (81.7%) is retracted as substantially a physics artifact.
+163 of 229 storm-condition rows penetrate at their drawn frequency (correctly
+no skywave → IRI fallback), and the retrained 66-row storm GP is only a
+marginal correction. See `docs/results.md`.
 
 **How to read these honestly:**
 - These are **interpolation within the training distribution** — one station, three months
@@ -399,7 +407,7 @@ From `docs/known_limitations.md`, in plain terms:
    for the storm population.
 4. **F10.7 defaults to 130 SFU** if not supplied — correct for 2012, wrong for other epochs.
 5. **A-CHAIM never fires** at India geometry — untested in the demo environment.
-6. **Storm GP trained on 183 rows** — small; high variance.
+6. **Storm GP trained on 52 rows** (post-D8) — very small; marginal correction, high variance.
 7. **Two-call model inconsistency** at the 60° latitude boundary (never fires at 23°N).
 8. **Antimeridian midpoint arithmetic** — simple longitude averaging breaks near ±180°
    (never fires in India).
@@ -426,8 +434,8 @@ were built 2026-07-10/11 — they closed the two biggest deliverable gaps:
    real `ssl_locate` (with a study-local memoized ionosphere), and reports MAE/median/P90
    per cell. Results in `docs/bearing_noise_results.md`; per-trial data in
    `data/processed/bearing_noise_results.csv`. Headlines: intrinsic floor (zero noise)
-   has median 3.2 km but is heavy-tailed under storm/PyRayHF routing at long range;
-   elevation error costs ~4–6× more than azimuth error at equal sigma.
+   has median 4.2 km but is heavy-tailed under storm/PyRayHF routing at long range;
+   elevation error costs ~3× more than azimuth error at equal sigma (post-D8 rerun).
 
 Note the README's published accuracy figures are still computed on noise-free bearings —
 the study characterises bearing error separately; it does not retrofit those numbers.

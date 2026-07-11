@@ -94,15 +94,15 @@ def fig_ssl_geometry():
 def fig_mae():
     fig, ax = plt.subplots(figsize=(3.3, 2.3), dpi=300)
     groups = ["IRTAM\n(nominal)", "PyRayHF\n(storm)"]
-    baseline = [103.29, 610.80]
-    corrected = [77.15, 111.96]
+    baseline = [103.29, 405.90]
+    corrected = [77.15, 379.64]
     x = np.arange(len(groups)); w = 0.36
     b1 = ax.bar(x - w/2, baseline, w, label="Baseline (physics)", color="#9aa7b2", edgecolor="#333", linewidth=0.5)
     b2 = ax.bar(x + w/2, corrected, w, label="GP-corrected", color="#3a6ea5", edgecolor="#333", linewidth=0.5)
     ax.set_ylabel("MAE (km)", fontsize=7.5)
     ax.set_xticks(x); ax.set_xticklabels(groups, fontsize=7)
     ax.legend(fontsize=6.3, frameon=False)
-    ax.set_ylim(0, 680)
+    ax.set_ylim(0, 480)
     for bars in (b1, b2):
         for rect in bars:
             h = rect.get_height()
@@ -114,25 +114,26 @@ def fig_mae():
     fig.savefig(p, bbox_inches="tight"); plt.close(fig)
     return p
 
-# Bearing-noise study results (docs/bearing_noise_results.md; seed 42, N=1/cell)
+# Bearing-noise study results (docs/bearing_noise_results.md; seed 42, N=2/cell,
+# regenerated post-D8: request-frequency ray tracing, corrected find_vh integral)
 BN_SIGMAS = [0.0, 0.5, 1.0, 2.0]
 BN_MEDIAN = np.array([
-    [3.2,  51.6, 116.1, 186.2],
-    [11.7, 54.0, 103.9, 224.5],
-    [18.8, 65.9, 112.9, 227.6],
-    [44.5, 77.9, 118.7, 249.9],
+    [4.2,  49.5, 67.4, 143.2],
+    [14.4, 46.1, 68.7, 138.6],
+    [27.3, 54.9, 86.8, 141.9],
+    [43.0, 62.3, 96.8, 154.8],
 ])  # rows az_sigma, cols el_sigma
 BN_MAE = [
-    ["87.2",  "205.8", "207.6", "409.2"],
-    ["94.6",  "164.5", "267.2", "377.8"],
-    ["102.7", "158.9", "224.7", "549.9"],
-    ["122.5", "216.9", "247.2", "576.9"],
+    ["48.3", "97.9",  "164.3", "298.4"],
+    ["48.3", "94.8",  "150.8", "325.2"],
+    ["63.9", "95.1",  "155.4", "241.7"],
+    ["69.2", "106.7", "151.4", "306.0"],
 ]
 
 def fig_bearing_heatmap():
     from matplotlib.colors import LogNorm
     fig, ax = plt.subplots(figsize=(3.3, 2.5), dpi=300)
-    norm = LogNorm(vmin=3.0, vmax=260.0)
+    norm = LogNorm(vmin=4.0, vmax=160.0)
     ax.pcolormesh(BN_MEDIAN, cmap="Blues", norm=norm,
                   edgecolors="white", linewidth=1.2)
     for i in range(4):
@@ -314,18 +315,23 @@ abstract_text = (
     "that corrects the systematic SSL bias. Trained and evaluated on real ionosonde "
     "residuals from the GIRO AH223 Ahmedabad station (June, July, December 2012), the "
     "system reduces held-out test-fold mean absolute error from 103.29 km to 77.15 km "
-    "(25.3%) under nominal mid-latitude conditions and from 610.80 km to 111.96 km "
-    "(81.7%) under geomagnetic-storm conditions, where HF geolocation degrades most "
-    "and matters most. These figures are interpolation within the training "
-    "distribution, not cross-station or cross-season generalization. A ground-truth "
-    "test-signal generator (an explicit deliverable) and a bearing-noise sensitivity "
-    "study establish the geolocation Figure of Merit directly: with perfect bearings "
-    "the SSL algorithm's median intrinsic error is 3.2 km, and elevation-bearing error "
-    "dominates, costing 4\N{EN DASH}6\N{MULTIPLICATION SIGN} more than equal azimuth "
-    "error and reaching a 186 km median at 2\N{DEGREE SIGN} elevation noise. The "
-    "contribution is a reproducible, fully offline-capable FastAPI service built on "
-    "open ionosonde data, together with an explicit validity envelope and a documented "
-    "defect ledger."
+    "(25.3%) under nominal mid-latitude conditions. Under geomagnetic-storm "
+    "conditions, correcting the ray tracer to run at the request frequency (defect "
+    "D8) revealed that most storm-time signals at typical HF frequencies penetrate "
+    "the depleted ionosphere—correctly reported as having no skywave solution—and "
+    "that the reflecting remainder carries a 405.90 km physics baseline that the "
+    "66-row storm population can only marginally correct (379.64 km, 6.5%); earlier "
+    "storm figures are retracted as a physics artifact. These figures are "
+    "interpolation within the training distribution, not cross-station or "
+    "cross-season generalization. A ground-truth test-signal generator (an explicit "
+    "deliverable) and a bearing-noise sensitivity study establish the geolocation "
+    "Figure of Merit directly: with perfect bearings the SSL algorithm's median "
+    "intrinsic error is 4.2 km, and elevation-bearing error dominates, costing "
+    "\N{GREEK SMALL LETTER SIGMA}-for-\N{GREEK SMALL LETTER SIGMA} about "
+    "3\N{MULTIPLICATION SIGN} more than azimuth error and reaching a 143 km median "
+    "at 2\N{DEGREE SIGN} elevation noise. The contribution is a reproducible, fully "
+    "offline-capable FastAPI service built on open ionosonde data, together with an "
+    "explicit validity envelope and a documented defect ledger."
 )
 r = ab.add_run(abstract_text)
 r.font.name = FONT; r.font.size = Pt(9); r.font.bold = True; r.font.italic = False
@@ -363,10 +369,15 @@ body_para(doc,
     "correction, service layer, validation, and documentation—was reconstructed and "
     "verified independently.")
 body_para(doc,
-    "The central contribution is stated plainly: during geomagnetic storms—when HF "
-    "geolocation degrades most and matters most—this system reduces single-station "
-    "range error from 611 km to 112 km, validated on real ionosonde data from AH223 "
-    "Ahmedabad. Under nominal conditions it reduces error from 103 km to 77 km. The "
+    "The central contribution is stated plainly: a reproducible single-station "
+    "geolocation pipeline that reduces nominal-condition range error from 103 km to "
+    "77 km on real AH223 ionosonde data, quantifies its own intrinsic accuracy with a "
+    "ground-truth test-signal generator (median 4.2 km with perfect bearings), and "
+    "reports its storm-time behaviour honestly: with the ray tracer corrected to run "
+    "at the request frequency (defect D8), most storm-condition signals penetrate the "
+    "depleted ionosphere and are flagged as having no skywave solution, while the "
+    "reflecting remainder carries a ~406 km physics baseline that the present 66-row "
+    "storm population cannot yet meaningfully correct. The "
     "remainder of this paper formulates the problem (Section II), describes the "
     "architecture (Sections III–V), reports validation (Section VI), establishes the "
     "test-signal ground truth and bearing-error figure of merit (Section VII), states "
@@ -458,7 +469,7 @@ body_para(doc,
     "optional F10.7), and returns the SSL physics estimate, the GP-corrected estimate "
     "with posterior uncertainty, the model audit trail, and warning flags. GET /health "
     "confirms that all four GP model files loaded at start-up and reports the training "
-    "row counts (7,382 for the IRTAM GP, 183 for the storm GP) for pre-demonstration "
+    "row counts (7,382 for the IRTAM GP, 52 for the storm GP) for pre-demonstration "
     "verification. Input validation rejects out-of-range fields with HTTP 422; a null or "
     "non-positive virtual height returns HTTP 503 rather than a nonsensical location.")
 
@@ -567,34 +578,46 @@ body_para(doc,
 heading(doc, "VI", "Validation and Results")
 body_para(doc,
     "The dataset comprises 9,457 residual rows from AH223, dominated by the nominal IRTAM "
-    "population with a small storm population (Table I). The 80/20 split within each "
-    "population yields the train/test row counts in Table I.")
-table_caption(doc, "Table I.  Dataset Composition and Train/Test Split")
+    "population (Table I). Storm-condition rows were regenerated after the D8 fix with "
+    "the ray tracer at each row's request frequency: 163 of the 229 storm-condition rows "
+    "penetrate the disturbed ionosphere at their drawn frequency (no skywave return) and "
+    "fall back to IRI, where no GP applies; the reflecting 66 form the storm GP "
+    "population. The 80/20 split within each GP population yields the train/test row "
+    "counts in Table I.")
+table_caption(doc, "Table I.  Dataset Composition and Train/Test Split (post-D8)")
 make_table(doc, [
     ["Population", "Total", "Share", "Train", "Test"],
     ["IRTAM (nominal)", "9,228", "97.6%", "7,382", "1,846"],
-    ["PyRayHF (storm)", "229", "2.4%", "183", "46"],
-    ["Total", "9,457", "100%", "7,565", "1,892"],
-], col_widths_in=[1.25, 0.55, 0.55, 0.55, 0.5])
+    ["PyRayHF (storm, reflecting)", "66", "0.7%", "52", "14"],
+    ["IRI (storm rows that penetrate)", "163", "1.7%", "—", "—"],
+    ["Total", "9,457", "100%", "7,434", "1,860"],
+], col_widths_in=[1.45, 0.5, 0.5, 0.5, 0.45])
 body_para(doc,
     "Performance is reported as mean absolute error (MAE, Haversine distance) on the "
     "held-out 20% test fold of each population (Table II, Fig. 3). The baseline is the SSL "
     "physics estimate with no GP correction; the corrected value adds the GP residual "
     "prediction.")
-table_caption(doc, "Table II.  Held-Out Test-Fold Performance")
+table_caption(doc, "Table II.  Held-Out Test-Fold Performance (post-D8)")
 make_table(doc, [
     ["Population", "Test", "Baseline", "Corrected", "Impr."],
     ["IRTAM", "1,846", "103.29 km", "77.15 km", "25.3%"],
-    ["PyRayHF (storm)", "46", "610.80 km", "111.96 km", "81.7%"],
+    ["PyRayHF (storm)", "14", "405.90 km", "379.64 km", "6.5%"],
 ], col_widths_in=[1.25, 0.5, 0.75, 0.75, 0.5])
-add_figure(doc, FIG3, "Fig. 3.  Baseline vs. GP-corrected MAE on held-out test folds. "
-                      "Storm error falls from 610.80 km to 111.96 km.")
+add_figure(doc, FIG3, "Fig. 3.  Baseline vs. GP-corrected MAE on held-out test folds "
+                      "(post-D8). The storm correction is marginal at the current "
+                      "66-row population.")
 body_para(doc,
     "Under nominal mid-latitude conditions the GP removes about a quarter of the ~103 km "
-    "baseline bias. Under storm conditions the baseline SSL error is large (~611 km), as "
-    "expected when the F2 layer is severely disturbed; the GP reduces it to ~112 km, an "
-    "81.7% improvement. This storm result rests on only 229 total rows (183 train, 46 "
-    "test) and should be read with that sample size in mind.")
+    "baseline bias. The storm figures changed fundamentally with the D8 fix. Earlier "
+    "reports cited a 610.80 km baseline reduced to 111.96 km (81.7%) — those figures are "
+    "retracted: the ray tracer then ran at a fixed 5 MHz regardless of request frequency, "
+    "and a shape misuse of the PyRayHF find_vh interface returned a per-layer quantity "
+    "instead of the vertical group-refractive-index integral. The large “learnable” "
+    "storm bias the old GP removed was substantially that artifact. With corrected "
+    "physics the reflecting storm population's baseline is 405.90 km and the retrained "
+    "GP improves it only marginally (379.64 km, 6.5%): at 52 training rows the "
+    "longitude kernel collapses and the posterior uncertainty is large. This result "
+    "rests on 14 test rows and should be read accordingly.")
 body_para(doc,
     "These numbers are interpolation within the training distribution, not generalization. "
     "Both GPs were trained and tested on the same station and the same three months, with "
@@ -641,10 +664,10 @@ body_para(doc,
     "grid), clips noisy elevations to the 1–60° band, and runs the full two-pass "
     "ssl_locate on every noisy observation against the same hybrid ionosphere the "
     "signals were synthesised from. Ionospheric lookups are memoised on coordinates "
-    "quantised to 0.1°—well below the ionosphere's native spatial resolution—so 923 "
-    "real model calls served 2,304 lookups; the per-cell realization count is sized "
-    "from a measured per-call latency probe (one draw per signal per cell, 72 trials "
-    "per cell, 1,152 total; seed 42, fully reproducible).")
+    "quantised to 0.1°—well below the ionosphere's native spatial resolution—so 1,525 "
+    "real model calls served 4,608 lookups; the per-cell realization count is sized "
+    "from a measured per-call latency probe (two draws per signal per cell, 144 trials "
+    "per cell, 2,304 total; seed 42, fully reproducible).")
 table_caption(doc, "Table III.  Geolocation MAE (km) Under Bearing Error "
                    "(Rows: Azimuth σ; Columns: Elevation σ)")
 make_table(doc, [
@@ -655,36 +678,35 @@ make_table(doc, [
     ["2.0°"] + BN_MAE[3],
 ], col_widths_in=[0.8, 0.62, 0.62, 0.62, 0.62])
 add_figure(doc, FIG4, "Fig. 4.  Median geolocation error (km) over the bearing-noise "
-                      "grid. The zero-noise cell is the 3.2 km intrinsic floor; error "
-                      "grows far faster along the elevation axis than the azimuth axis.")
+                      "grid (post-D8). The zero-noise cell is the 4.2 km intrinsic "
+                      "floor; error grows far faster along the elevation axis than "
+                      "the azimuth axis.")
 body_para(doc,
     "Three results stand out. First, the intrinsic floor: with perfect bearings the "
-    "algorithm's median error is 3.2 km (P90 49 km). Under quiet conditions the floor is "
-    "excellent—sub-kilometre at 800 km range, 5–9 km at 2,200 km—so the two-pass "
-    "approximation is very tight when the virtual-height field is smooth. Under the "
-    "storm condition the floor is heavy-tailed (worst zero-noise trial 3,192 km): "
-    "ray-traced virtual heights vary strongly with position, the pass-one height at the "
-    "receiver mislocates the bounce midpoint, and the residual height difference is "
-    "amplified by 1/tan(Δ) ≈ 10–18× at the 3–8° elevations of long-range signals. This "
-    "tail, not typical behaviour, is why the zero-noise MAE (87.2 km) sits far above its "
-    "median.")
+    "algorithm's median error is 4.2 km (P90 92 km). Under quiet conditions the "
+    "two-pass approximation is very tight when the virtual-height field is smooth. "
+    "Under the storm condition the floor remains heavy-tailed (worst zero-noise trial "
+    "678 km): the corrected 10 MHz ray-traced heights vary strongly with position, the "
+    "pass-one height at the receiver mislocates the bounce midpoint, and the residual "
+    "height difference is amplified by 1/tan(Δ). This tail, not typical behaviour, is "
+    "why the zero-noise MAE (48.3 km) sits far above its median.")
 body_para(doc,
     "Second, elevation error dominates, as the geometry predicts: at equal σ it costs "
-    "4–6× more than azimuth error (median 186.2 km for 2.0° elevation noise alone versus "
-    "44.5 km for 2.0° azimuth noise alone; 116.1 versus 18.8 km at 1.0°). Draws that push "
-    "low-elevation signals toward the 1° clip explode the range estimate—the largest "
-    "single-trial error was 5,493 km—so low-elevation, long-range geometry is where "
-    "bearing quality matters most. Third, azimuth error mainly rotates the fix: az-only "
-    "medians grow gently (3.2 → 11.7 → 18.8 → 44.5 km), consistent with cross-range "
-    "displacement of approximately range × sin σ.")
+    "about 3× more than azimuth error (median 143.2 km for 2.0° elevation noise alone "
+    "versus 43.0 km for 2.0° azimuth noise alone; 67.4 versus 27.3 km at 1.0°). Draws "
+    "that push signals toward low elevation explode the range estimate—the largest "
+    "single-trial error was 6,620 km at a noisy elevation of 2.5°—so low-elevation, "
+    "long-range geometry is where bearing quality matters most. Third, azimuth error "
+    "mainly rotates the fix: az-only medians grow gently (4.2 → 14.4 → 27.3 → 43.0 km), "
+    "consistent with cross-range displacement of approximately range × sin σ.")
 body_para(doc,
     "Two scope notes apply. The study isolates the algorithm: observations are "
     "synthesised and inverted with the same hybrid ionosphere, so ionospheric-model "
     "error—characterised separately in Table II—is excluded by design, and the two "
-    "error sources are not conflated. And with one noise draw per signal per cell, the "
-    "MAE cells rest on 72 trials and are not perfectly monotone (heavy-tailed single "
-    "draws dominate means); the medians of Fig. 4, which are robust, are monotone in "
-    "both axes.")
+    "error sources are not conflated. And with two noise draws per signal per cell, the "
+    "MAE cells rest on 144 trials and are not perfectly monotone (heavy-tailed draws "
+    "dominate means); the medians of Fig. 4, which are robust, are monotone in both "
+    "axes.")
 
 # ====================== VIII. VALIDITY ENVELOPE AND LIMITATIONS ======================
 heading(doc, "VIII", "Validity Envelope and Known Limitations")
@@ -712,22 +734,24 @@ make_table(doc, [
     ["#", "Limitation", "Severity"],
     ["1", "Single station / season / geometry scope", "Scope"],
     ["2", "GP not validated on held-out station", "Scope"],
-    ["3", "PyRayHF fixed at 5 MHz (D8)", "Medium"],
-    ["4", "F10.7 defaults to 130 SFU (D9)", "Low"],
+    ["3", "PyRayHF fixed at 5 MHz (D8)", "Fixed"],
+    ["4", "F10.7 defaults to 130 SFU (D9) — OMNI2 auto-lookup", "Fixed"],
     ["5", "A-CHAIM never fires at India geometry", "Low"],
-    ["6", "Storm GP trained on 183 rows", "Medium"],
-    ["7", "Two-call model inconsistency at 60°N", "Low"],
-    ["8", "Antimeridian midpoint arithmetic", "Low"],
+    ["6", "Storm GP trained on 52 rows", "High"],
+    ["7", "Two-call model inconsistency at 60°N", "Fixed"],
+    ["8", "Antimeridian midpoint arithmetic", "Fixed"],
     ["9", "No inter-annual temporal validation", "Scope"],
 ], col_widths_in=[0.3, 2.55, 0.55], body_size=7.0)
 body_para(doc,
-    "Two limitations deserve emphasis. The PyRayHF ray tracer runs at a fixed internal "
-    "frequency of 5.0 MHz, and the storm GP was trained at that frequency; a request at a "
-    "different frequency mixes a 5 MHz physics height with a request-frequency feature, "
-    "degrading the storm correction (medium severity, not yet fixed). And the storm GP's "
-    "183 training rows are a small sample for a Gaussian process: the posterior inflates "
-    "quickly away from training points and cannot finely distinguish storm severities "
-    "(medium severity, flagged).")
+    "One limitation deserves emphasis: the storm GP's 52 training rows are a very small "
+    "sample for a Gaussian process. At this data volume the longitude kernel collapses "
+    "(length scale → 0), the posterior inflates quickly away from training points, and "
+    "the correction is marginal (Table II). Storm-time corrections should be treated "
+    "with caution until the population is expanded — the highest-priority validation "
+    "item. The frequency-consistency defect that previously compounded this (D8) is "
+    "fixed: the ray tracer now runs at the request frequency, and its correction "
+    "additionally exposed and resolved a find_vh interface misuse that had inflated "
+    "storm baselines (see Table VI).")
 subheading(doc, "A", "Defect ledger")
 body_para(doc,
     "Catching and resolving defects during engineering review is a strength of the "
@@ -742,7 +766,8 @@ make_table(doc, [
     ["GP kernel collapse (mixed population)", "Fixed (per-population)"],
     ["selected_model vs model_used audit trail (D1)", "Fixed"],
     ["MUF warning (D12)", "Fixed"],
-    ["PyRayHF fixed at 5 MHz (D8)", "Open (medium)"],
+    ["PyRayHF fixed at 5 MHz (D8)", "Fixed"],
+    ["find_vh shape misuse (per-layer value, not integral)", "Fixed"],
 ], col_widths_in=[2.35, 1.05], body_size=7.0)
 body_para(doc,
     "Each ledger entry was caught during engineering review and either resolved or "
@@ -751,12 +776,15 @@ body_para(doc,
     "clean HTTP 503 instead of a 500 traceback during a live demonstration; the scikit-"
     "learn version is pinned so the serialised GP models load deterministically; and the "
     "kernel-collapse defect motivated the per-population split described in Section V. "
-    "Three low-severity geometric limitations remain documented rather than fixed because "
-    "they cannot fire at the AH223 23°N deployment: the two ionospheric calls could select "
-    "different models if a midpoint crosses the 60° A-CHAIM latitude boundary; the midpoint "
-    "longitude uses an arithmetic mean that is wrong across the ±180° antimeridian; and the "
-    "A-CHAIM branch itself receives no test coverage at India geometry. Each has a known "
-    "fix path and would be addressed before a polar or trans-antimeridian deployment.")
+    "The find_vh entry records that fixing D8 exposed a deeper defect: the wrapper fed "
+    "per-layer arrays into an interface that integrates across layers, so the reported "
+    "virtual height was a per-layer quantity rather than the group-refractive-index "
+    "integral — the source of the retracted pre-D8 storm figures. The two geometric "
+    "limitations formerly documented here (two-pass model mixing at the 60° boundary and "
+    "antimeridian midpoint arithmetic) are now fixed via selection pinning and a "
+    "circular-mean midpoint. One coverage gap remains open: the A-CHAIM branch receives "
+    "no test coverage at India geometry and would be exercised before a polar "
+    "deployment.")
 
 # ====================== IX. PATH TO OPERATIONAL USE ======================
 heading(doc, "IX", "Path to Operational Use")
@@ -776,10 +804,12 @@ body_para(doc,
     "complete behind a model-agnostic interface; integrating the SAMI3 first-principles "
     "physics model in place of the PyRayHF proxy awaits real-time data access. The "
     "ionospheric baseline can be upgraded from IRI-2016 to IRI-2020. The F10.7 solar-flux "
-    "index, currently defaulting to 130 SFU, can be auto-populated per observation date "
-    "via an OMNI-web lookup—the request field and validator already exist; only the fetch "
-    "logic is missing. Finally, the storm GP should be retrained once PyRayHF is "
-    "parameterised to run at the request frequency rather than a fixed 5 MHz.")
+    "index is now auto-populated per observation date via an OMNI2 lookup with a cached, "
+    "offline-safe fallback to 130 SFU, and each response reports the value and source "
+    "used. The most consequential open item is storm-time data volume: with the ray "
+    "tracer now running at the request frequency, the reflecting storm population is 66 "
+    "rows — expanding it with additional storm-time ionosonde data is the top priority "
+    "before storm-time corrections can be relied upon.")
 body_para(doc,
     "Air-gapped deployment is already supported. The Leaflet mapping library is bundled "
     "and served locally with no CDN dependency, and the entire geolocation pipeline—"

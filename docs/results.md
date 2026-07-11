@@ -26,8 +26,15 @@ or months outside {June, July, December}. A held-out generalization test
 | Population | Rows | Share | Ionospheric model |
 |---|---|---|---|
 | IRTAM (nominal conditions) | 9,228 | 97.6% | PyIRTAM local cache |
-| PyRayHF (storm: Kp ≥ 5 or Dst ≤ −100 nT) | 229 | 2.4% | PyRayHF ray tracer |
+| PyRayHF (storm, reflecting: Kp ≥ 5 or Dst ≤ −100 nT) | 66 | 0.7% | PyRayHF ray tracer |
+| IRI (storm-condition rows whose frequency penetrates) | 163 | 1.7% | IRI-2016 fallback |
 | **Total** | **9,457** | **100%** | — |
+
+Storm-condition rows were regenerated after the D8 fix
+(`data/regen_storm_residuals.py`): PyRayHF now ray-traces at each row's
+request frequency, and 163 of the 229 storm-condition rows penetrate the
+disturbed ionosphere at their drawn frequency (no skywave return), falling
+back to IRI where no GP applies.
 
 GP training uses an 80/20 train/test split (random seed 42) applied
 **within each population separately**.
@@ -35,7 +42,7 @@ GP training uses an 80/20 train/test split (random seed 42) applied
 | Population | Training rows | Test rows |
 |---|---|---|
 | IRTAM | 7,382 | 1,846 |
-| PyRayHF | 183 | 46 |
+| PyRayHF | 52 | 14 |
 
 ---
 
@@ -44,7 +51,7 @@ GP training uses an 80/20 train/test split (random seed 42) applied
 | Population | Test rows | Baseline MAE (physics only) | GP-Corrected MAE | Improvement (km) | Improvement (%) |
 |---|---|---|---|---|---|
 | IRTAM | 1,846 | 103.29 km | 77.15 km | 26.14 km | 25.3% |
-| PyRayHF (storm) | 46 | 610.80 km | 111.96 km | 498.84 km | 81.7% |
+| PyRayHF (storm) | 14 | 405.90 km | 379.64 km | 26.26 km | 6.5% |
 
 **Baseline** is the SSL physics estimate with no GP correction applied
 (`primary_estimate` in the API response).
@@ -66,6 +73,7 @@ valid:
 |---|---|
 | 96 km / 66.55 km (30.7% improvement) | Fabricated; produced from a synthetic GP training run, not real residuals |
 | 104.55 km / 74.67 km (28.6% improvement) | Mixed-population baseline — IRTAM and PyRayHF rows combined into a single GP, causing kernel collapse. Not per-population figures |
+| 610.80 km / 111.96 km (81.7% improvement) | Pre-D8 storm figures: PyRayHF ray-traced at a fixed 5 MHz regardless of request frequency, and a `find_vh` shape misuse returned a per-layer value instead of the vertical group-refractive-index integral. The large "learnable" bias the GP removed was substantially that artifact |
 
 Use only the per-population figures from the table above.
 
@@ -79,15 +87,20 @@ The GP correction reduces this to ~77 km, a 25% improvement. The
 improvement reflects systematic, learnable bias in the SSL formula under
 the Solar Cycle 24 ionospheric conditions seen at Ahmedabad in 2012.
 
-**PyRayHF storm population (2.4% of data):** Under geomagnetic storm
-conditions the SSL physics estimate degrades substantially (baseline ~611 km).
-This large error is a known characteristic of SSL geolocation during
-storms: the F2 layer is severely disturbed, and the virtual height
-produced by the ray tracer captures only part of the distortion. The
-GP correction reduces the error to ~112 km (81.7% improvement). However,
-this result is based on only 229 total rows (183 training, 46 test).
-The small population means the GP has limited ability to generalise
-across the full space of storm conditions. Treat this figure with caution.
+**PyRayHF storm population (0.7% of data, post-D8):** With the ray trace
+run at the request frequency and the corrected virtual-height integral,
+the storm baseline is ~406 km (test fold of 14) — much lower than the
+pre-D8 611 km figure, most of which was a physics artifact rather than
+ionospheric behaviour. The retrained GP improves the baseline only
+marginally (~380 km, 6.5%): with 52 training rows the longitude kernel
+collapses (length scale → 0) and the posterior uncertainty is large
+(mean σ_lon ≈ 7.9°). The honest storm-time story is now: (a) most
+storm-condition signals at typical HF frequencies penetrate the depleted
+ionosphere and are correctly reported as having no skywave solution
+(MUF warning path), and (b) for the signals that do reflect, the physics
+baseline carries a ~400 km error that the current data volume cannot
+meaningfully correct. Expanding the storm population is the top
+validation priority. Treat all storm figures with caution.
 
 ---
 

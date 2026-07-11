@@ -219,9 +219,11 @@ _GP_NOTE_IRTAM = (
 )
 
 _GP_NOTE_SAMI3 = (
-    "GP correction applied (PyRayHF storm-time population, 229 rows). "
+    "GP correction applied (PyRayHF storm-time population, 66 rows, "
+    "request-frequency ray tracing after D8). "
     "Trained on AH223 Ahmedabad data, Jun/Jul/Dec 2012, single-hop simulated geometry. "
-    "Small training population — high uncertainty outside training distribution."
+    "Very small training population — the correction is marginal and its "
+    "uncertainty is large; treat storm-time corrections with caution."
 )
 
 _GP_NOTE_NO_MODEL = (

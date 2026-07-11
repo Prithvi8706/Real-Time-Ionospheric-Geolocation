@@ -44,21 +44,21 @@ estimates of performance at an arbitrary new location.
 
 ## 3. PyRayHF calibrated at 5 MHz only (D8)
 
-The PyRayHF ray tracer runs at a fixed internal frequency of **5.0 MHz**,
-which is representative of AH223 solar maximum conditions. The storm GP
-models (`gp_lat_sami3.pkl`, `gp_lon_sami3.pkl`) were also trained at this
-frequency.
+**Resolved 2026-07-11.** The ray tracer now runs at the request frequency
+(`get_rayhf_profile(..., frequency_mhz=...)`, threaded from `ssl_locate`),
+the storm residuals were regenerated at request frequencies
+(`data/regen_storm_residuals.py`), and the storm GP pair was retrained
+(`ml/retrain_storm_gp.py`).
 
-When a caller passes `frequency_mhz = 10.0` (for example), the SSL
-physics estimate is computed at 10 MHz but the GP correction was trained
-with the ray tracer operating at 5 MHz. The feature vector fed to the GP
-includes `frequency_mhz` from the request (10 MHz) while the underlying
-physics (`virtual_height_km`) was derived at 5 MHz. This inconsistency
-affects the GP prediction for the PyRayHF population.
-
-**Fix path:** Expose `_F_MHZ` in `rayhf_wrapper.py` as a parameter and
-re-run the PyRayHF ray tracer at the request frequency, then retrain the
-storm GP at matching frequencies.
+The fix also uncovered and corrected a `find_vh` shape misuse: the wrapper
+fed `(n_alts, 1)` arrays into a function that integrates over axis 1, so it
+returned a per-layer value instead of the vertical group-refractive-index
+integral. Consequences of the corrected physics, documented in
+`docs/results.md`: 163 of 229 storm-condition rows penetrate the ionosphere
+at their request frequency (correctly no skywave return → IRI fallback),
+and the pre-D8 storm figures (610.80 → 111.96 km) are superseded — most of
+that "learnable" bias was the physics artifact. A penetration guard now
+rejects frequencies the profile cannot reflect.
 
 ---
 
@@ -68,14 +68,12 @@ storm GP at matching frequencies.
 value during the Solar Cycle 24 peak period used in training. This default
 is correct for 2012 data but incorrect for other solar epochs.
 
-A caller who does not supply `f107` for a 2025 observation (Solar Cycle
-25 rising phase, F10.7 ≈ 160–200 SFU) will receive an estimate that uses
-an incorrect solar flux index, degrading ionospheric model accuracy.
-
-**Fix path (deferred):** Implement a lightweight OMNI-web lookup that
-fetches the daily F10.7 value from NASA's OMNI2 dataset by date and
-injects it automatically. The `LocateRequest` field and its validator are
-already in place; only the fetch logic is missing.
+**Resolved 2026-07-11.** An omitted `f107` is now auto-resolved from the
+NASA OMNI2 daily file for the request date (`api/f107.py`; per-date cache,
+offline fail-soft to the 130.0 SFU default). The response reports
+`f107_used` and `f107_source` ("caller" / "omniweb" / "default"). The
+default only applies when the caller omits the value *and* the OMNI2
+lookup is unavailable (e.g. air-gapped deployment).
 
 ---
 
@@ -92,15 +90,19 @@ regression test suite does not include an A-CHAIM path test.
 
 ---
 
-## 6. Storm GP trained on only 183 rows (small population)
+## 6. Storm GP trained on only 52 rows (small population)
 
-The PyRayHF storm population contains **229 total rows** (183 training,
-46 test). This is a small sample for a Gaussian Process model. The GP
-posterior uncertainty will be well-calibrated near training points but
-will inflate rapidly away from them. In practice:
+After the D8 regeneration the PyRayHF storm population contains **66 total
+rows** (52 training, 14 test) — the other 163 storm-condition rows
+penetrate at their request frequency and fall back to IRI, where no GP
+applies. This is a very small sample for a Gaussian Process model. In
+practice:
 
-- The test-set MAE of 111.96 km is based on 46 test rows. Variance on
-  this estimate is high.
+- The test-fold MAE (405.90 km baseline → 379.64 km corrected, 6.5%) is
+  based on 14 test rows. Variance on this estimate is very high.
+- The longitude GP kernel collapses at this data volume (length scale
+  → 2.5e-4, mean σ_lon ≈ 7.9°) — the correction is marginal and should be
+  treated as such.
 - The GP cannot meaningfully distinguish between different storm
   severities (Kp=5 vs Kp=9) given so few training points across the
   storm-intensity dimension.
@@ -108,39 +110,28 @@ will inflate rapidly away from them. In practice:
   differs substantially from the training distribution.
 
 **Fix path:** Collect more storm-time ionosonde data (real or modelled)
-from the target region and season to expand the PyRayHF training population.
+from the target region and season to expand the PyRayHF training
+population. Severity upgraded from Medium to High for storm-time use.
 
 ---
 
 ## 7. Two-call model inconsistency at latitude boundaries (TODOS item 1)
 
-`ssl_locate()` calls `get_ionosphere()` twice: once at the receiver
-location (rough pass) and once at the midpoint (refined pass). If the
-midpoint happens to cross the A-CHAIM latitude boundary (|lat| = 60°),
-the two calls may select different models — IRI for the receiver, A-CHAIM
-for the midpoint — producing an inconsistent profile pair.
-
-This never fires at India geometry (23°N) but would manifest at ~55°N
-deployment. The fix is to propagate the model selected in the rough pass
-into the refined pass, or assert both calls return the same model.
+**Resolved 2026-07-11.** The refined pass now pins the rough pass's model
+selection via `get_ionosphere(force_model=...)`, so a midpoint crossing
+the ±60° boundary can no longer silently mix model families. Runtime
+fallback (e.g. IRTAM → IRI on missing coefficients) still applies within
+the pinned branch.
 
 ---
 
 ## 8. Antimeridian longitude error (TODOS item 2)
 
-The midpoint longitude is computed as simple arithmetic mean:
-
-```python
-mid_lon = (receiver_lon + rough_tx_lon) / 2
-```
-
-This is incorrect when the receiver and rough transmitter straddle the
-antimeridian (longitude ±180°). For example, averaging 170°E and −170°E
-gives 0° instead of the correct 180°. The fix is to use circular mean
-arithmetic for longitude.
-
-This does not affect any India-region demo (all longitudes well away
-from 180°).
+**Resolved 2026-07-11.** The refined-pass midpoint longitude now uses a
+circular mean (`_circular_mean_deg` in `models/ssl_algorithm.py`), which
+equals the arithmetic bisector at mid-latitudes (validated numbers
+unchanged) and normalizes the midpoint into [−180, 180] before it reaches
+the ionospheric models.
 
 ---
 
@@ -159,10 +150,10 @@ captured by the training data and not reflected in the published figures.
 |---|---|---|---|---|
 | 1 | Single station/season/geometry scope | All performance claims | N/A — it is the deployment site | Scope |
 | 2 | GP not validated on held-out station | Generalization claims | N/A | Scope |
-| 3 | PyRayHF fixed at 5 MHz (D8) | Storm GP accuracy | Yes, for non-5 MHz requests | Medium |
-| 4 | F10.7 defaults to 130 SFU (D9) | Non-2012 deployments | No for 2012 data | Low |
+| 3 | PyRayHF fixed at 5 MHz (D8) | Storm GP accuracy | Resolved 2026-07-11 | Fixed |
+| 4 | F10.7 defaults to 130 SFU (D9) | Non-2012 deployments | Resolved 2026-07-11 (OMNI2 auto-lookup) | Fixed |
 | 5 | A-CHAIM never fires at India | A-CHAIM branch untested | No | Low |
-| 6 | Storm GP: 183 training rows | Storm estimate confidence | Yes (storm conditions only) | Medium |
-| 7 | Two-call model inconsistency at 60°N | Model selection audit | No | Low |
-| 8 | Antimeridian midpoint arithmetic | Extreme eastern longitudes | No | Low |
+| 6 | Storm GP: 52 training rows | Storm estimate confidence | Yes (storm conditions only) | High |
+| 7 | Two-call model inconsistency at 60°N | Model selection audit | Resolved 2026-07-11 | Fixed |
+| 8 | Antimeridian midpoint arithmetic | Extreme eastern longitudes | Resolved 2026-07-11 | Fixed |
 | 9 | No inter-annual validation | Long-term generalization | N/A | Scope |

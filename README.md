@@ -42,30 +42,32 @@ This correctly samples the ionosphere at the physical reflection point rather th
 A Gaussian Process correction layer learns the residual error structure between SSL physics estimates and true transmitter locations. Two separate GP pairs (latitude and longitude) are trained per model population:
 
 - **IRTAM population:** 9,228 rows — GP trained on real AH223 ionosonde residuals
-- **PyRayHF storm population:** 229 rows — GP trained on storm-time residuals
+- **PyRayHF storm population:** 66 rows — GP trained on storm-time residuals ray-traced at the request frequency (D8 fix). Of the 229 storm-condition rows, 163 penetrate the ionosphere at their drawn frequency (no skywave return) and fall back to IRI, where no GP applies.
 
 Features: azimuth, elevation, frequency, virtual height, Kp, Dst, hour, month, baseline lat/lon.
 
 **Training distribution bounds:** AH223 station (Ahmedabad, 23°N 72°E), June/July/December 2012, single-hop simulated emitter geometry. GP correction reliability is reduced outside this distribution — the API flags out-of-distribution inputs via `ood_warning` in the response.
 
-**Note on archived dataset labels:** The residual CSV in `data/processed/ssl_real_residuals_2012.csv` labels storm-time rows as `SAMI3` — a legacy label from before the storm slot was renamed to PyRayHF. The GP training script (`models/ssl_gp_model.py`) accepts both labels; the implemented storm-slot model is PyRayHF throughout.
+**Note on dataset labels:** Storm-condition rows in `data/processed/ssl_real_residuals_2012.csv` were regenerated after the D8 fix (`data/regen_storm_residuals.py`) and carry `PyRayHF`/`IRI` labels; the GP training script (`models/ssl_gp_model.py`) also still accepts the legacy `SAMI3` label from pre-regeneration CSVs.
 
 ## 4. Validated Results
 
-All figures are evaluated on held-out test folds (random 80/20 split per population, `random_state=42`). IRTAM test fold: n = 1,846 of 9,228 total rows. Storm test fold: n = 46 of 229 total rows. The storm test fold is small; storm-time figures should be read accordingly.
+All figures are evaluated on held-out test folds (random 80/20 split per population, `random_state=42`). IRTAM test fold: n = 1,846 of 9,228 total rows. Storm test fold: n = 14 of 66 total rows. The storm test fold is very small; storm-time figures should be read accordingly.
 
 | Population | Total rows | Test fold (n) | Baseline MAE | GP-Corrected MAE | Improvement |
 |---|---|---|---|---|---|
 | IRTAM | 9,228 (97.6%) | 1,846 | 103.29 km | 77.15 km | 26.14 km (25.3%) |
-| PyRayHF (storm) | 229 (2.4%) | 46 | 610.80 km | 111.96 km | 498.84 km (81.7%) |
+| PyRayHF (storm) | 66 (0.7%) | 14 | 405.90 km | 379.64 km | 26.26 km (6.5%) |
 
 **Error distribution (held-out test folds):**
 
 | Statistic | IRTAM baseline | IRTAM corrected | Storm baseline | Storm corrected |
 |---|---|---|---|---|
-| Median | 62.20 km | 52.23 km | 560.40 km | 95.76 km |
-| P90 | 249.55 km | 170.36 km | 1,123.08 km | 243.89 km |
-| Worst case | 1,012.35 km | 681.78 km | 1,266.01 km | 314.54 km |
+| Median | 62.20 km | 52.23 km | 286.38 km | 247.03 km |
+| P90 | 249.55 km | 170.36 km | 904.06 km | 861.86 km |
+| Worst case | 1,012.35 km | 681.78 km | 1,147.55 km | 1,304.26 km |
+
+**Revision note (D8, 2026-07-11):** Storm figures published before this date (baseline 610.80 km → corrected 111.96 km, 81.7%) were computed with PyRayHF ray-tracing at a fixed 5 MHz and a shape misuse of `find_vh` that returned a per-layer value instead of the vertical group-refractive-index integral. The large "learnable" storm bias the old GP removed was substantially that artifact. With the corrected physics: 163 of 229 storm-condition rows penetrate at their drawn frequency (correctly no skywave return → IRI fallback + MUF warning path), the remaining 66-row PyRayHF population has a 405.90 km baseline, and the retrained GP improves it only marginally (6.5%; the longitude kernel collapses on 52 training rows). Growing the storm population is the top validation priority.
 
 **Scope:** These figures are held-out test-fold performance within the training distribution (single-hop, mid-latitude India, Jun/Jul/Dec 2012, simulated emitter geometry, noise-free angles of arrival). The split is random at row level, not blocked by day. Generalisation to other months, latitudes, or real emitter geometries is not validated.
 
