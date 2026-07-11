@@ -4,12 +4,19 @@
 ---
 
 ### 1. Two-call model inconsistency
-`ssl_locate()` calls `get_ionosphere()` twice — once at the receiver location (rough pass) and once at the midpoint (refined pass). If the midpoint crosses the A-CHAIM latitude boundary (`|lat| >= 60`), the rough call uses IRI but the refined call uses A-CHAIM, producing an inconsistent profile pair. Never triggers at India geometry (23°N) but would fire at 55°N deployment. Fix: pass the model selected in the rough pass through to the refined pass, or assert both calls return the same model.
+**Resolved 2026-07-11** — the refined pass now pins the rough pass's model
+selection via `get_ionosphere(force_model=...)`, so a midpoint crossing the
+±60° boundary can no longer silently mix model families. Runtime fallback
+(e.g. IRTAM → IRI on missing coefficients) still applies within the pinned
+branch.
 
 ---
 
 ### 2. Antimeridian longitude midpoint arithmetic
-The midpoint calculation in `ssl_locate()` uses simple averaging: `mid_lon = (receiver_lon + rough_tx_lon) / 2`. This does not handle antimeridian crossing — emitters near 180° longitude will produce an incorrect midpoint (e.g. averaging 170°E and -170°E gives 0° instead of 180°). Fix: use circular mean for longitude arithmetic.
+**Resolved 2026-07-11** — the refined-pass midpoint longitude now uses a
+circular mean (`_circular_mean_deg`), which is exactly the arithmetic
+bisector at mid-latitudes (validated numbers unchanged) and additionally
+normalizes the midpoint into [-180, 180] before it reaches the models.
 
 ---
 
