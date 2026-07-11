@@ -162,6 +162,8 @@ def ssl_locate(
         virtual_height_km=round(virtual_height_km, 2),
         model_used=iono["model_used"],
         selected_model=iono["selected_model"],
-        reason=iono["reason"],
+        # reason reports the rough pass's selection rationale — the refined
+        # call's reason is just the two-pass pinning mechanism
+        reason=iono_init["reason"],
         foF2=foF2
     )
