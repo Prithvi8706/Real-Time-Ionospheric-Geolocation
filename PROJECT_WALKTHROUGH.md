@@ -333,16 +333,19 @@ Real-Time-Ionospheric-Geolocation/
 │   ├── merge_indices.py        # Merge OMNI indices onto the AH223 ionosonde rows
 │   ├── generate_real_residuals.py # Build the residual training set (§6) — the ~125 min run
 │   ├── simulate_ssl_dataset.py # Forward grid of SSL outputs (a demo/sanity dataset)
+│   ├── generate_test_signals.py# Ground-truth test signal generator (DRDO deliverable, §11)
 │   ├── time_probe*.py          # Rough per-call timing probes
 │   └── processed/              # Datasets (large ones gitignored)
 ├── report_table3.py            # Reproduce Tables 2–3 from saved models (no retraining)
+├── bearing_noise_study.py      # Bearing-noise Figure-of-Merit study (§11)
 ├── build_report.py             # Builds the DRDO technical report document
-├── tests/test_ssl.py           # Regression tests for the API/routing/guards (5 tests)
+├── tests/                      # 26 tests: API/routing/guards, generator, noise study
 ├── docs/
 │   ├── results.md              # Validated results + "numbers never to cite"
+│   ├── bearing_noise_results.md# Bearing-noise study tables + interpretation (§11)
 │   ├── known_limitations.md    # The honest limitations list (9 items)
 │   ├── architecture.md, api_reference.md, deployment.md
-│   └── superpowers/specs/      # Design specs (incl. the in-progress test-signal-generator spec)
+│   └── superpowers/specs/      # Design specs (+ plans/ with per-feature implementation plans)
 ├── README.md                   # Top-level project readme
 ├── DRDO_DIA-CoE_EW02_Technical_Report.docx  # The technical report deliverable
 └── DRDO_DIA_CoE_EW_02_brief.md # The official problem statement + a (stale) status note
@@ -406,22 +409,28 @@ Plus the two structural caveats from §6: **noise-free bearings** and **row-leve
 
 ---
 
-## 11. What's in progress right now
+## 11. Test signals and the bearing-noise Figure of Merit
 
-Two new pieces are specced (see
-`docs/superpowers/specs/2026-07-01-test-signal-generator-and-bearing-noise-study-design.md`)
-and about to be built — they close the two biggest deliverable gaps:
+Two pieces specced in
+`docs/superpowers/specs/2026-07-01-test-signal-generator-and-bearing-noise-study-design.md`
+were built 2026-07-10/11 — they closed the two biggest deliverable gaps:
 
 1. **Test signal generation tool** (`data/generate_test_signals.py`) — an explicit DRDO
    deliverable. It places emitters at *known* lat/lon, synthesises the exact az/el/freq a
-   receiver would observe (forward geometry through the real ionosphere), and writes them
-   out as ground-truth "test signals." This lets the Figure of Merit be measured against a
-   known answer, not just ionospheric MAE.
-2. **Bearing-noise sensitivity study** (`bearing_noise_study.py`) — injects realistic
-   Gaussian error into the azimuth and elevation (swept independently on a 2D grid), runs
-   the real `ssl_locate`, and reports how accuracy degrades. This directly answers the first
-   question a DF/EW reviewer will ask: *"what happens when the bearings aren't perfect?"* —
-   which the current numbers don't address.
+   receiver would observe (forward geometry through the real ionosphere), and writes 72
+   ground-truth "test signals" to `data/processed/test_signals.csv` (deterministic, all
+   elevations inside the solver's 1–60° band). Unit tests prove the generator and solver
+   are exact geometric inverses.
+2. **Bearing-noise sensitivity study** (`bearing_noise_study.py`) — injects Gaussian
+   error into azimuth and elevation (swept independently on a 4×4 sigma grid), runs the
+   real `ssl_locate` (with a study-local memoized ionosphere), and reports MAE/median/P90
+   per cell. Results in `docs/bearing_noise_results.md`; per-trial data in
+   `data/processed/bearing_noise_results.csv`. Headlines: intrinsic floor (zero noise)
+   has median 3.2 km but is heavy-tailed under storm/PyRayHF routing at long range;
+   elevation error costs ~4–6× more than azimuth error at equal sigma.
+
+Note the README's published accuracy figures are still computed on noise-free bearings —
+the study characterises bearing error separately; it does not retrofit those numbers.
 
 ---
 
@@ -459,5 +468,5 @@ and about to be built — they close the two biggest deliverable gaps:
 
 ---
 
-*This walkthrough describes the codebase as of 2026-07-01. If you change the physics,
+*This walkthrough describes the codebase as of 2026-07-11. If you change the physics,
 the models, or the data pipeline, update §2–§6 to match.*
