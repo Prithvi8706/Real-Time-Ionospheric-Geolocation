@@ -30,9 +30,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Ionosonde frequency used for X and Y calculations
+# Default ionosonde frequency for X and Y calculations (legacy calibration)
 _F_MHZ = 5.0
-_F_HZ = _F_MHZ * 1e6
 
 # IRI altitude grid parameters (must match iri_wrapper.py call: [100, 500, 10])
 _ALT_MIN_KM = 100.0
@@ -54,23 +53,29 @@ class RayHFProfile:
     source: str = "PyRayHF"
 
 
-def get_rayhf_profile(lat: float, lon: float, dt: datetime.datetime) -> RayHFProfile:
+def get_rayhf_profile(
+    lat: float,
+    lon: float,
+    dt: datetime.datetime,
+    frequency_mhz: float = _F_MHZ,
+) -> RayHFProfile:
     """
     Compute virtual height via PyRayHF ray tracing for a given location and time.
 
     Uses IRI electron density profile as input to the ray tracer.
     Intended for storm-time rows only (kp >= 5 or dst <= -100).
 
-    **Frequency assumption (D8):** PyRayHF is calibrated at _F_MHZ=5.0 MHz,
-    representative of AH223 solar max conditions. Storm GP models
-    (gp_lat_sami3.pkl, gp_lon_sami3.pkl) were trained at this frequency.
-    Passing arbitrary request.frequency_mhz into the GP feature vector while
-    physics runs at 5 MHz is a known limitation — see TODOS.md.
+    **D8 fixed:** the ray trace runs at `frequency_mhz` (the request
+    frequency), defaulting to the legacy 5.0 MHz calibration. The storm GP
+    models (gp_lat_sami3.pkl, gp_lon_sami3.pkl) are trained on residuals
+    generated at request frequencies. A frequency the disturbed ionosphere
+    cannot reflect yields no virtual height (None fields → IRI fallback).
 
     Args:
         lat: Latitude in degrees (N positive)
         lon: Longitude in degrees (E positive)
         dt: Datetime (UTC, timezone-aware or naive)
+        frequency_mhz: Signal frequency for the ray trace (MHz)
 
     Returns:
         RayHFProfile with virtual_height_km set if successful, None fields otherwise.
@@ -108,12 +113,14 @@ def get_rayhf_profile(lat: float, lon: float, dt: datetime.datetime) -> RayHFPro
         # --- Step 3: Assemble find_vh inputs ---
         # find_vh expects 2D inputs of shape (n_alts, 1).
 
+        f_hz = frequency_mhz * 1e6
+
         # X = (fp/f)^2 = Ne * 80.6 / f_Hz^2
-        X = (ne * 80.6 / (_F_HZ ** 2)).reshape(-1, 1)
+        X = (ne * 80.6 / (f_hz ** 2)).reshape(-1, 1)
 
         # Y = fH / f_MHz, where fH = 28e3 * mag_T (MHz)
         fH = 28e3 * mag   # MHz
-        Y = (fH / _F_MHZ).reshape(-1, 1)
+        Y = (fH / frequency_mhz).reshape(-1, 1)
 
         # bpsi = angle between wave vector and B (vertical wave = psi from vertical)
         bpsi = psi.reshape(-1, 1)
