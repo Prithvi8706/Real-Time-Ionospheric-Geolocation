@@ -133,3 +133,18 @@ def test_run_trials_is_deterministic():
                        n_realizations=3)
 
     pd.testing.assert_frame_equal(a, b)
+
+
+# ── Sizing ───────────────────────────────────────────────────────────────
+
+def test_choose_n_scales_with_latency():
+    """Fast model -> largest N; very slow model -> smallest N."""
+    from bearing_noise_study import choose_n_realizations, N_CANDIDATES
+
+    signals = _mini_signal_set()
+
+    n_fast, _ = choose_n_realizations(latency_s=0.0001, signals=signals)
+    assert n_fast == N_CANDIDATES[0]
+
+    n_slow, _ = choose_n_realizations(latency_s=1000.0, signals=signals)
+    assert n_slow == 1

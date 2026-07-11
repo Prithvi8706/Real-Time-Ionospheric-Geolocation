@@ -153,3 +153,100 @@ def summarize(trials: pd.DataFrame) -> dict:
         ).round(1)
         for name, fn in aggs.items()
     }
+
+
+def estimate_misses(
+    signals: pd.DataFrame,
+    n_realizations: int,
+    quant_deg: float = QUANT_DEG,
+    assumed_height_km: float = 300.0,
+) -> int:
+    """
+    Dry-run the exact trial loop (same seed, same rng consumption order)
+    with pure geometry at a fixed virtual height and count the unique
+    quantized ionosphere keys ssl_locate would request. Real heights vary
+    ~285-315 km so this estimate is close but not exact — callers apply a
+    safety margin.
+    """
+    rng = np.random.default_rng(SEED)
+    keys = set()
+    for az_sigma in AZ_SIGMAS:
+        for el_sigma in EL_SIGMAS:
+            for sig in signals.itertuples():
+                keys.add((round(sig.receiver_lat / quant_deg),
+                          round(sig.receiver_lon / quant_deg),
+                          sig.timestamp, sig.kp, sig.dst))
+                for _ in range(n_realizations):
+                    az_noisy = (sig.azimuth_deg
+                                + az_sigma * rng.standard_normal()) % 360.0
+                    el_noisy = np.clip(
+                        sig.elevation_deg + el_sigma * rng.standard_normal(),
+                        EL_MIN_DEG, EL_MAX_DEG,
+                    )
+                    d_rough = assumed_height_km / np.tan(np.radians(el_noisy))
+                    tx_lat, tx_lon = compute_transmitter_location(
+                        sig.receiver_lat, sig.receiver_lon, az_noisy, d_rough
+                    )
+                    mid_lat = (sig.receiver_lat + tx_lat) / 2
+                    mid_lon = (sig.receiver_lon + tx_lon) / 2
+                    keys.add((round(mid_lat / quant_deg),
+                              round(mid_lon / quant_deg),
+                              sig.timestamp, sig.kp, sig.dst))
+    return len(keys)
+
+
+def choose_n_realizations(latency_s: float, signals: pd.DataFrame):
+    """Largest candidate N whose estimated model-call time fits the budget."""
+    est_s = None
+    for n in N_CANDIDATES:
+        est_s = estimate_misses(signals, n) * 1.2 * latency_s
+        if est_s <= CALL_BUDGET_S:
+            return n, est_s
+    return 1, est_s
+
+
+def _probe_latency_s(n_probe: int = 3) -> float:
+    """Median wall time of a real, uncached ionosphere call."""
+    from models.hybrid_model import get_ionosphere as real_get_ionosphere
+    dt = datetime(2012, 6, 15, 12, 0, 0)
+    times = []
+    for i in range(n_probe):
+        t0 = time.perf_counter()
+        real_get_ionosphere(lat=10.0 + 0.37 * i, lon=65.0, dt=dt,
+                            kp=1.0, dst=-10.0, irtam_available=False)
+        times.append(time.perf_counter() - t0)
+    return float(np.median(times))
+
+
+def main() -> None:
+    if os.path.exists(SIGNALS_CSV):
+        signals = pd.read_csv(SIGNALS_CSV)
+    else:
+        print(f"{SIGNALS_CSV} not found — generating it first")
+        signals = build_test_signal_set()
+        os.makedirs(os.path.dirname(SIGNALS_CSV), exist_ok=True)
+        signals.to_csv(SIGNALS_CSV, index=False)
+    print(f"Loaded {len(signals)} test signals")
+
+    latency_s = _probe_latency_s()
+    n, est_s = choose_n_realizations(latency_s, signals)
+    print(f"Per-call latency ~{latency_s:.2f}s -> N={n} realizations/cell "
+          f"(estimated model-call time ~{est_s:.0f}s)")
+
+    t0 = time.perf_counter()
+    with memoized_ionosphere() as iono:
+        trials = run_trials(signals, n_realizations=n)
+    elapsed = time.perf_counter() - t0
+    print(f"Ran {len(trials)} trials in {elapsed:.0f}s "
+          f"({iono.stats['calls']} iono calls, {iono.stats['misses']} real)")
+
+    trials.to_csv(RESULTS_CSV, index=False)
+    print(f"Saved per-trial results to {RESULTS_CSV}")
+
+    for name, table in summarize(trials).items():
+        print(f"\n{name} error (km) — az_sigma rows x el_sigma cols:")
+        print(table.to_string())
+
+
+if __name__ == "__main__":
+    main()
