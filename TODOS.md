@@ -14,10 +14,15 @@ The midpoint calculation in `ssl_locate()` uses simple averaging: `mid_lon = (re
 ---
 
 ### 3. Training data leakage
-The GP models are trained and evaluated on residuals from the same AH223 ionosonde station (Ahmedabad, 23°N). There is no held-out station for generalisation testing. Performance numbers reflect interpolation within the training distribution, not generalisation to new locations. Document explicitly in the technical report limitations section.
+**Resolved 2026-07-11** — documented explicitly in the technical report
+(Section VI "interpolation, not generalization" and the validity envelope) and
+in PROJECT_WALKTHROUGH.md. The underlying limitation (no held-out station)
+remains future validation work, tracked in the report's Path to Operational Use.
 
 ---
 
 ### 4. OMNI-web F10.7 auto-lookup
-`LocateRequest.f107` was added in D9 so callers can supply the solar flux index explicitly (default 130.0 SFU). The next step is a lightweight OMNI-web lookup by date so callers do not need to supply it manually. Implementation: fetch hourly OMNI2 CSV for the request date, parse F10.7 column, cache per-date to avoid repeated HTTP calls.
-No other files need to be touched for this task.
+**Resolved 2026-07-11** — `api/f107.py` auto-resolves omitted `f107` from the
+OMNI2 daily file (per-date cache, offline fail-soft to 130.0 SFU); `/locate`
+reports `f107_used` and `f107_source`. Wiring f107 into the ionospheric models
+remains deferred (couples to D8 PyRayHF frequency parameterisation).
