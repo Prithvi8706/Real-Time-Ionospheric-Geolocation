@@ -37,3 +37,12 @@ def test_rayhf_default_frequency_is_5mhz():
     p_default = get_rayhf_profile(23.0, 72.6, DT_NOON)
     p5 = get_rayhf_profile(23.0, 72.6, DT_NOON, frequency_mhz=5.0)
     assert p_default.virtual_height_km == p5.virtual_height_km
+
+
+def test_rayhf_penetrating_frequency_is_unavailable():
+    """20 MHz > foF2 (~10.6 MHz at this hour): the ray escapes and the
+    wrapper must report no usable virtual height, not a bogus integral."""
+    from models.rayhf.rayhf_wrapper import get_rayhf_profile, is_rayhf_available
+
+    p20 = get_rayhf_profile(23.0, 72.6, DT_NOON, frequency_mhz=20.0)
+    assert not is_rayhf_available(p20)

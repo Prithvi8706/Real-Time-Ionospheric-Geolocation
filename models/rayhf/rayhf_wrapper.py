@@ -14,11 +14,15 @@ Physics:
 
 Ionosonde frequency: 5.0 MHz (representative mid-HF for low-latitude solar max)
 
-API shape convention (learned empirically):
+API shape convention (verified against PyRayHF.library source):
     calculate_magnetic_field: lat/lon must be arrays of shape (n_alts,); returns (n_alts, n_alts)
-    find_vh: all array inputs must be 2D (n_alts, 1); returns (n_alts, 1) — squeeze to (n_alts,)
-    find_vh output: cumulative virtual height per layer; nan once ray has reflected.
-                    Correct value = last non-nan entry (the reflection point).
+    find_vh: inputs are (n_rays, n_layers); it integrates mup*dh over axis=1
+             (layers) and adds alt_min. One vertical ray = shape (1, n_alts),
+             returning a single virtual height. mup is NaN above the X=1
+             reflection level, so nansum integrates exactly up to reflection.
+    Penetration: if X = (fp/f)^2 never reaches 1 inside the profile the ray
+             escapes; find_vh would still return a whole-grid integral, so the
+             caller must check np.nanmax(X) >= 1 before trusting the result.
     Units: calculate_magnetic_field returns mag in Tesla (not nT despite docstring)
 """
 
@@ -111,37 +115,43 @@ def get_rayhf_profile(
         psi = np.asarray(psi_2d)[:, 0]   # shape (41,), degrees from vertical
 
         # --- Step 3: Assemble find_vh inputs ---
-        # find_vh expects 2D inputs of shape (n_alts, 1).
+        # find_vh integrates mup*dh over axis=1 (layers): one vertical ray is
+        # shape (1, n_alts) and yields a single virtual height.
 
         f_hz = frequency_mhz * 1e6
 
         # X = (fp/f)^2 = Ne * 80.6 / f_Hz^2
-        X = (ne * 80.6 / (f_hz ** 2)).reshape(-1, 1)
+        X = (ne * 80.6 / (f_hz ** 2)).reshape(1, -1)
 
         # Y = fH / f_MHz, where fH = 28e3 * mag_T (MHz)
         fH = 28e3 * mag   # MHz
-        Y = (fH / frequency_mhz).reshape(-1, 1)
+        Y = (fH / frequency_mhz).reshape(1, -1)
 
         # bpsi = angle between wave vector and B (vertical wave = psi from vertical)
-        bpsi = psi.reshape(-1, 1)
+        bpsi = psi.reshape(1, -1)
 
-        # dh: uniform layer thickness (km), shape (n_alts, 1)
-        dh = np.full((len(alts), 1), _DH)
+        # dh: uniform layer thickness (km)
+        dh = np.full((1, len(alts)), _DH)
 
-        # --- Step 4: Compute virtual height ---
-        vh_2d = rayhf.find_vh(X, Y, bpsi, dh, _ALT_MIN_KM, "O")
-        vh_arr = np.asarray(vh_2d).squeeze()  # shape (41,)
-
-        # find_vh returns cumulative virtual height per layer; nan once the ray has
-        # reflected. The correct virtual height is the last non-nan value — the
-        # reflection point. Taking peak_idx (F2 peak) would always land in the nan
-        # region because reflection occurs before the Ne maximum.
-        valid_mask = ~np.isnan(vh_arr)
-        if not np.any(valid_mask):
-            logger.warning(f"PyRayHF: find_vh returned all-nan for ({lat}, {lon}, {dt})")
+        # Penetration guard: O-mode reflection requires X to reach 1 inside the
+        # profile. Otherwise the ray escapes — find_vh would still return a
+        # whole-grid integral, which is not a reflection height.
+        if np.nanmax(X) < 1.0:
+            logger.warning(
+                f"PyRayHF: {frequency_mhz} MHz penetrates the ionosphere at "
+                f"({lat}, {lon}, {dt}) — no skywave return"
+            )
             return RayHFProfile(lat=lat, lon=lon, datetime=dt)
 
-        virtual_height_km = float(vh_arr[valid_mask][-1])  # last non-nan = reflection point
+        # --- Step 4: Compute virtual height ---
+        # mup is NaN above the reflection level, so the nansum inside find_vh
+        # integrates the group refractive index exactly up to reflection.
+        vh_out = rayhf.find_vh(X, Y, bpsi, dh, _ALT_MIN_KM, "O")
+        virtual_height_km = float(np.asarray(vh_out).squeeze())
+
+        if np.isnan(virtual_height_km):
+            logger.warning(f"PyRayHF: find_vh returned nan for ({lat}, {lon}, {dt})")
+            return RayHFProfile(lat=lat, lon=lon, datetime=dt)
 
         # Sanity check: virtual height must be physically reasonable
         if not (50.0 < virtual_height_km < 1000.0):
