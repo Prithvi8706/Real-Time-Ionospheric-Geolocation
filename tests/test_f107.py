@@ -79,3 +79,74 @@ def test_resolve_falls_back_to_default():
     with patch("api.f107._fetch_year", side_effect=OSError("offline")):
         value, source = resolve_f107(None, datetime(2012, 6, 15, 12))
     assert (value, source) == (DEFAULT_F107, "default")
+
+
+# ── /locate integration ──────────────────────────────────────────────────
+
+from unittest.mock import MagicMock
+
+from fastapi.testclient import TestClient
+from api.main import app
+
+client = TestClient(app)
+
+_PAYLOAD_NO_F107 = {
+    "receiver_lat": 23.0,
+    "receiver_lon": 72.0,
+    "azimuth_deg": 45.0,
+    "elevation_deg": 15.0,
+    "frequency_mhz": 10.0,
+    "timestamp": "2012-06-15T12:00:00",
+    "kp": 1.0,
+    "dst": -10.0,
+    "irtam_available": True,
+}
+
+
+def _mock_ssl():
+    m = MagicMock()
+    m.transmitter_lat = 24.5
+    m.transmitter_lon = 73.5
+    m.ground_distance_km = 180.0
+    m.virtual_height_km = 280.0
+    m.model_used = "IRTAM"
+    m.selected_model = "IRTAM"
+    m.reason = "nominal conditions, IRTAM available"
+    m.foF2 = 12.0
+    return m
+
+
+def test_locate_omitted_f107_is_auto_resolved():
+    with patch("api.main.ssl_locate", return_value=_mock_ssl()), \
+         patch("api.main._gp_models_loaded", False), \
+         patch("api.main.resolve_f107",
+               return_value=(120.9, "omniweb")) as resolver:
+        response = client.post("/locate", json=_PAYLOAD_NO_F107)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["f107_used"] == 120.9
+    assert data["f107_source"] == "omniweb"
+    (explicit, dt), _ = resolver.call_args
+    assert explicit is None
+    assert dt == datetime(2012, 6, 15, 12, 0, 0)
+
+
+def test_locate_explicit_f107_is_respected():
+    payload = {**_PAYLOAD_NO_F107, "f107": 180.0}
+    with patch("api.main.ssl_locate", return_value=_mock_ssl()), \
+         patch("api.main._gp_models_loaded", False), \
+         patch("api.f107._fetch_year") as fetch:
+        response = client.post("/locate", json=payload)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["f107_used"] == 180.0
+    assert data["f107_source"] == "caller"
+    fetch.assert_not_called()
+
+
+def test_locate_invalid_f107_still_422():
+    payload = {**_PAYLOAD_NO_F107, "f107": 10.0}
+    response = client.post("/locate", json=payload)
+    assert response.status_code == 422

@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
 from models.ssl_algorithm import ssl_locate, SSLResult
+from api.f107 import resolve_f107
 
 # ── GP model paths ───────────────────────────────────────────────────────
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -91,7 +92,7 @@ class LocateRequest(BaseModel):
     timestamp: str          # ISO 8601, e.g. "2012-06-15T12:00:00"
     kp: float
     dst: float
-    f107: float = 130.0     # D9: solar flux index; defaults to training-time value
+    f107: Optional[float] = None  # D9/T4: SFU; omit to auto-resolve from OMNI2 by date
     irtam_available: bool = False
 
     @field_validator("timestamp")
@@ -163,8 +164,10 @@ class LocateRequest(BaseModel):
 
     @field_validator("f107")
     @classmethod
-    def _validate_f107(cls, v: float) -> float:
+    def _validate_f107(cls, v: Optional[float]) -> Optional[float]:
         # M1: guard against nan/inf which bypass range comparisons silently
+        if v is None:
+            return v  # T4: omitted — auto-resolved from OMNI2 at request time
         if math.isnan(v) or math.isinf(v) or v < 50.0 or v > 300.0:
             raise ValueError(
                 f"f107 must be a finite value between 50 and 300 SFU (got {v}). "
@@ -203,6 +206,8 @@ class LocateResponse(BaseModel):
     ionosphere: IonosphereInfo
     gp_correction: GPCorrection
     muf_warning: bool = False   # D12: True if frequency_mhz > foF2
+    f107_used: float            # T4: F10.7 actually used for this request (SFU)
+    f107_source: str            # T4: "caller" | "omniweb" | "default" (audit trail)
 
 
 # ── GP correction helper ─────────────────────────────────────────────────
@@ -376,6 +381,9 @@ def health():
 def locate(request: LocateRequest):
     dt = datetime.fromisoformat(request.timestamp)
 
+    # T4: resolve F10.7 — explicit caller value, else OMNI2 by date, else default
+    f107_used, f107_source = resolve_f107(request.f107, dt)
+
     ssl_result: SSLResult = ssl_locate(
         receiver_lat=request.receiver_lat,
         receiver_lon=request.receiver_lon,
@@ -416,6 +424,8 @@ def locate(request: LocateRequest):
         ),
         gp_correction=gp,
         muf_warning=muf_warning,    # D12
+        f107_used=f107_used,        # T4
+        f107_source=f107_source,    # T4
     )
 
 
