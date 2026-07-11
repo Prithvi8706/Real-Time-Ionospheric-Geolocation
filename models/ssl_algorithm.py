@@ -115,7 +115,8 @@ def ssl_locate(
         dt=dt,
         kp=kp,
         dst=dst,
-        irtam_available=irtam_available
+        irtam_available=irtam_available,
+        frequency_mhz=frequency_mhz
     )
     rough_height = _extract_height(iono_init["profile"])
     rough_distance = compute_ground_distance(rough_height, elevation_deg)
@@ -139,7 +140,8 @@ def ssl_locate(
         kp=kp,
         dst=dst,
         irtam_available=irtam_available,
-        force_model=iono_init["selected_model"]
+        force_model=iono_init["selected_model"],
+        frequency_mhz=frequency_mhz
     )
     virtual_height_km = _extract_height(iono["profile"])
 

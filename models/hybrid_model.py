@@ -32,7 +32,8 @@ def get_ionosphere(
     kp: float,
     dst: float,
     irtam_available: bool = False,
-    force_model: str = None
+    force_model: str = None,
+    frequency_mhz: float = 5.0
 ) -> dict:
     """
     Master function — selects the right model and returns ionospheric profile.
@@ -108,7 +109,9 @@ def get_ionosphere(
         # Issue 3 fix: renamed from "SAMI3" — this slot uses PyRayHF ray tracing,
         # not the SAMI3 physics model. PyRayHF computes virtual height directly
         # from an IRI electron density profile via ray tracing.
-        rayhf_profile = get_rayhf_profile(lat, lon, dt)
+        # D8 fix: ray-trace at the request frequency (was fixed 5.0 MHz).
+        # frequency_mhz only affects this branch — IRTAM/IRI/A-CHAIM ignore it.
+        rayhf_profile = get_rayhf_profile(lat, lon, dt, frequency_mhz=frequency_mhz)
         if is_rayhf_available(rayhf_profile):
             profile = rayhf_profile
             model_used = "PyRayHF"

@@ -117,6 +117,7 @@ def synthesize_observation(
     iono = get_ionosphere(
         lat=mid_lat, lon=mid_lon, dt=dt, kp=kp, dst=dst,
         irtam_available=irtam_available,
+        frequency_mhz=frequency_mhz,
     )
     virtual_height_km = _extract_height(iono["profile"])
 
