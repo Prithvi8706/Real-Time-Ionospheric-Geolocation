@@ -413,7 +413,10 @@ From `docs/known_limitations.md`, in plain terms:
    (never fires in India).
 9. **No inter-annual validation** — only 2012 data.
 
-Plus the two structural caveats from §6: **noise-free bearings** and **row-level split**.
+Plus the two structural caveats from §6: **noise-free bearings** (characterised
+separately by the bearing-noise study, §11) and **row-level split** (hardened
+2026-07-12 by `day_blocked_split.py`: day-blocked IRTAM correction is 83.14 km /
+23.0% vs 77.15 km / 25.3% row-level — leakage inflation is modest).
 
 ---
 

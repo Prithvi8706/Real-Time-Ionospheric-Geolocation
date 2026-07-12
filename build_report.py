@@ -620,10 +620,13 @@ body_para(doc,
     "rests on 14 test rows and should be read accordingly.")
 body_para(doc,
     "These numbers are interpolation within the training distribution, not generalization. "
-    "Both GPs were trained and tested on the same station and the same three months, with "
-    "a row-level random split rather than a day-blocked one; because ionospheric residuals "
-    "are temporally autocorrelated, a day-blocked split would be a stricter test and is "
-    "recommended as future hardening. The figures measure how well the system reduces bias "
+    "Both GPs were trained and tested on the same station and the same three months. "
+    "Because ionospheric residuals are temporally autocorrelated, the row-level random "
+    "split was additionally hardened with a day-blocked variant (no calendar day "
+    "contributes rows to both folds; 17 of 84 days held out): the IRTAM correction "
+    "degrades only modestly, from 77.15 km (25.3%) to 83.14 km (23.0%) on 1,859 "
+    "day-blocked test rows — the correction transfers across days within the training "
+    "months. The figures measure how well the system reduces bias "
     "on the distribution it was exposed to. They are explicitly NOT: a held-out-station "
     "score, a held-out-season score, a multi-hop result, or a real-emitter-track result. "
     "The emitter geometry is simulated (random azimuths and distances under a single-hop "

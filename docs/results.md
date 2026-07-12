@@ -64,6 +64,28 @@ not computed on the training data.
 
 ---
 
+## Day-blocked split (temporal hardening)
+
+Because ionospheric residuals are temporally autocorrelated, the row-level
+random split above could be flattered by adjacent-hour rows straddling the
+train/test boundary. `day_blocked_split.py` re-trains the GP with the split
+blocked by calendar day (84 IRTAM days → 17 held-out test days, 7,369
+train / 1,859 test rows; seed 42; production models untouched):
+
+| Population | Test rows | Baseline MAE | GP-Corrected MAE | Improvement |
+|---|---|---|---|---|
+| IRTAM (day-blocked) | 1,859 (17 days) | 108.00 km | 83.14 km | 23.0% |
+
+Median 65.52 → 55.22 km; P90 259.76 → 178.61 km. Compared with the
+row-level split (77.15 km, 25.3%), the day-blocked correction degrades by
+~6 km MAE and ~2 percentage points — the leakage inflation is real but
+modest, and the correction transfers across days within the training
+months. The storm population spans only 6 calendar days, so its
+day-blocked result (7 test rows, −1.4%) carries no statistical weight;
+it is consistent with the storm correction being marginal.
+
+---
+
 ## Numbers never to cite
 
 The following figures appeared in earlier development runs and are not
